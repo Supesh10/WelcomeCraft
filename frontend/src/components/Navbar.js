@@ -1,12 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { Search, ShoppingCart, Menu, X, Home, Package, Info, Phone } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
-import ApiService from '../services/apiService';
+import React, { useState, useEffect } from "react";
+import {
+  Search,
+  ShoppingCart,
+  Menu,
+  X,
+  Home,
+  Package,
+  Info,
+  Phone,
+} from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import ApiService from "../services/apiService";
+import logo from "../logo.jpg";
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const location = useLocation();
 
@@ -18,7 +28,7 @@ export default function Navbar() {
         const response = await ApiService.getCart(sessionId);
         setCartCount(response.totalItems || 0);
       } catch (error) {
-        console.error('Error fetching cart count:', error);
+        console.error("Error fetching cart count:", error);
         setCartCount(0);
       }
     };
@@ -28,22 +38,24 @@ export default function Navbar() {
     const handleStorageChange = () => {
       fetchCartCount();
     };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
   }, [location]);
 
   const navItems = [
-    { name: 'Home', path: '/', icon: Home },
-    { name: 'Products', path: '/products', icon: Package },
-    { name: 'About Us', path: '/about', icon: Info },
-    { name: 'Contact', path: '/contact', icon: Phone },
+    { name: "Home", path: "/", icon: Home },
+    { name: "Products", path: "/products", icon: Package },
+    { name: "About Us", path: "/about", icon: Info },
+    { name: "Contact", path: "/contact", icon: Phone },
   ];
 
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      window.location.href = `/products?search=${encodeURIComponent(searchQuery.trim())}`;
-      setSearchQuery('');
+      window.location.href = `/products?search=${encodeURIComponent(
+        searchQuery.trim()
+      )}`;
+      setSearchQuery("");
       setIsSearchOpen(false);
     }
   };
@@ -51,20 +63,42 @@ export default function Navbar() {
   return (
     <>
       {/* Main Navbar */}
-      <header className="shadow-lg sticky top-0 z-50" style={{ backgroundColor: 'var(--cream)' }}>
+      <header
+        className="shadow-lg sticky top-0 z-50"
+        style={{ backgroundColor: "var(--cream)" }}
+      >
         <div className="container mx-auto">
           <div className="flex items-center justify-between py-4">
-            
-            {/* Logo Section */}
             <Link to="/" className="flex items-center space-x-3 group">
-              <div className="w-12 h-12 rounded-full flex items-center justify-center shadow-md group-hover:shadow-lg transition-shadow" style={{ background: 'linear-gradient(135deg, var(--saffron), var(--golden), var(--deep-golden))' }}>
-                <span className="text-white font-bold text-xl">🕉</span>
+              {/* Logo Image */}
+              <div className="w-12 h-12 rounded-full shadow-md group-hover:shadow-lg transition-shadow overflow-hidden">
+                <img
+                  src={logo}
+                  alt="Welcome Craft Logo"
+                  className="w-full h-full object-cover"
+                />
               </div>
+
+              {/* Title and Subtitle */}
               <div>
-                <h1 className="text-2xl font-bold group-hover:transition-colors" style={{ fontFamily: 'var(--font-display)', color: 'var(--dark-gray)' }}>
+                <h1
+                  className="text-2xl font-bold group-hover:transition-colors"
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    color: "var(--dark-gray)",
+                  }}
+                >
                   Welcome Craft
                 </h1>
-                <p className="text-sm" style={{ color: 'var(--stone-gray)', fontFamily: 'var(--font-primary)' }}>Buddhist Handicrafts</p>
+                <p
+                  className="text-sm"
+                  style={{
+                    color: "var(--stone-gray)",
+                    fontFamily: "var(--font-primary)",
+                  }}
+                >
+                  Buddhist Handicrafts
+                </p>
               </div>
             </Link>
 
@@ -79,8 +113,8 @@ export default function Navbar() {
                     to={item.path}
                     className={`flex items-center space-x-2 px-3 py-2 rounded-lg font-medium transition-all ${
                       isActive
-                        ? 'text-saffron bg-light-saffron/20 border-b-2 border-saffron'
-                        : 'text-stone-gray hover:text-saffron hover:bg-saffron/10'
+                        ? "text-saffron bg-light-saffron/20 border-b-2 border-saffron"
+                        : "text-stone-gray hover:text-saffron hover:bg-saffron/10"
                     }`}
                   >
                     <Icon size={18} />
@@ -89,7 +123,6 @@ export default function Navbar() {
                 );
               })}
             </nav>
-
             {/* Desktop Actions */}
             <div className="hidden md:flex items-center space-x-4">
               {/* Search */}
@@ -114,7 +147,7 @@ export default function Navbar() {
                       type="button"
                       onClick={() => {
                         setIsSearchOpen(false);
-                        setSearchQuery('');
+                        setSearchQuery("");
                       }}
                       className="ml-2 p-2 text-stone-gray hover:text-dark-gray"
                     >
@@ -139,12 +172,11 @@ export default function Navbar() {
                 <ShoppingCart size={20} />
                 {cartCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-maroon text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                    {cartCount > 99 ? '99+' : cartCount}
+                    {cartCount > 99 ? "99+" : cartCount}
                   </span>
                 )}
               </Link>
             </div>
-
             {/* Mobile Menu Button */}
             <button
               className="md:hidden p-2 text-stone-gray hover:text-saffron transition-colors"
@@ -159,11 +191,16 @@ export default function Navbar() {
       {/* Mobile Menu Overlay */}
       {isMenuOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
-          <div className="fixed inset-0 bg-dark-gray/50" onClick={() => setIsMenuOpen(false)} />
+          <div
+            className="fixed inset-0 bg-dark-gray/50"
+            onClick={() => setIsMenuOpen(false)}
+          />
           <div className="fixed top-0 right-0 h-full w-80 bg-lotus-white shadow-xl">
             <div className="p-6">
               <div className="flex items-center justify-between mb-8">
-                <h2 className="text-xl font-display font-bold text-dark-gray">Menu</h2>
+                <h2 className="text-xl font-display font-bold text-dark-gray">
+                  Menu
+                </h2>
                 <button
                   onClick={() => setIsMenuOpen(false)}
                   className="p-2 text-stone-gray hover:text-saffron"
@@ -203,8 +240,8 @@ export default function Navbar() {
                       onClick={() => setIsMenuOpen(false)}
                       className={`flex items-center space-x-3 px-4 py-3 rounded-lg font-medium transition-all ${
                         isActive
-                          ? 'text-saffron bg-light-saffron/20 border-l-4 border-saffron'
-                          : 'text-stone-gray hover:text-saffron hover:bg-saffron/10'
+                          ? "text-saffron bg-light-saffron/20 border-l-4 border-saffron"
+                          : "text-stone-gray hover:text-saffron hover:bg-saffron/10"
                       }`}
                     >
                       <Icon size={20} />
@@ -225,7 +262,7 @@ export default function Navbar() {
                   </div>
                   {cartCount > 0 && (
                     <span className="bg-maroon text-white text-sm font-bold rounded-full h-6 w-6 flex items-center justify-center">
-                      {cartCount > 99 ? '99+' : cartCount}
+                      {cartCount > 99 ? "99+" : cartCount}
                     </span>
                   )}
                 </Link>

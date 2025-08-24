@@ -28,7 +28,7 @@ exports.fetchAndSavePrice = async () => {
     return { price, saved: true };
   }
 
-  if (existing.pricePerTola !== price) {
+  if (existing.pricePerTola !== price && scrapedAt > existing.lastScrapedAt) {
     existing.pricePerTola = price;
     existing.lastScrapedAt = scrapedAt;
     await existing.save();
@@ -73,8 +73,7 @@ exports.getPriceHistory = async (req, res) => {
     const { limit = 30, page = 1 } = req.query;
     const skip = (page - 1) * limit;
 
-    const history = await GoldPrice
-      .find()
+    const history = await GoldPrice.find()
       .sort({ effectiveDate: -1 })
       .limit(parseInt(limit))
       .skip(skip);

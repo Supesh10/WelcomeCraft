@@ -28,7 +28,7 @@ exports.fetchAndSavePrice = async () => {
     return { price, saved: true };
   }
 
-  if (existing.pricePerTola !== price) {
+  if (existing.pricePerTola !== price && scrapedAt > existing.lastScrapedAt) {
     existing.pricePerTola = price;
     existing.lastScrapedAt = scrapedAt;
     await existing.save();

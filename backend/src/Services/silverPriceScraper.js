@@ -3,25 +3,26 @@ const cheerio = require("cheerio");
 
 async function scrapeSilverPrice() {
   try {
-    const { data: html } = await axios.get(process.env.SILVER_PRICE_API_URL);
+    const { data: html } = await axios.get(
+      "https://www.sharesansar.com/bullion"
+    );
     const $ = cheerio.load(html);
 
-    const li = $(
-      "li[onclick=\"$('.goldchart').hide();$('#goldchart2').show();\"]"
-    );
-    if (!li.length) {
-      throw new Error("Silver price element not found on hamropatro.com");
+    // Find the row that contains "Silver"
+    const silverRow = $("table tbody tr").filter((i, el) => {
+      return $(el).find("td").first().text().trim().toLowerCase() === "silver";
+    });
+
+    if (!silverRow.length) {
+      throw new Error("Silver price row not found on sharesansar.com");
     }
 
-    const text = li.text().trim();
-    const match = text.match(/([\d,]+\.\d+)/);
-    if (!match) {
-      throw new Error(`Price not found in text: ${text}`);
-    }
+    // Get the price from the third column
+    const priceText = silverRow.find("td").eq(2).text().trim();
+    const price = parseFloat(priceText.replace(/Rs\.|,/g, "").trim());
 
-    const price = parseFloat(match[1].replace(/,/g, ""));
     if (isNaN(price)) {
-      throw new Error(`Parsed price is invalid: ${match[1]}`);
+      throw new Error(`Parsed silver price is invalid: ${priceText}`);
     }
 
     const scrapedAt = new Date();
