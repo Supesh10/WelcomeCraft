@@ -8,20 +8,20 @@ const router = express.Router();
 // Admin login
 router.post("/admin/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { username, password } = req.body;
 
-    if (!email || !password) {
+    if (!username || !password) {
       return res.status(400).json({ message: "Email and password are required" });
     }
 
     // Find admin by email
-    const admin = await Admin.findOne({ email });
+    const admin = await Admin.findOne({ username });
     if (!admin) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({ message: "Invalid email" });
     }
 
     // Check password
-    const isMatch = await bcrypt.compare(password, admin.password);
+    const isMatch = await bcrypt.compare(password, admin.passwordHash);
     if (!isMatch) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
@@ -119,23 +119,24 @@ router.post("/admin/init", async (req, res) => {
     }
 
     // Create default admin using environment variables
-    const defaultEmail = process.env.ADMIN_EMAIL || "admin@welcomecraft.com";
+    const defaultUsername = process.env.ADMIN_USERNAME || "admin";
     const defaultPassword = process.env.ADMIN_PASSWORD || "admin123";
-    
+
+    console.log("Creating default admin with username:", defaultUsername, "and password:", defaultPassword);
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(defaultPassword, salt);
 
     const defaultAdmin = new Admin({
-      name: "Admin",
-      email: defaultEmail,
-      password: hashedPassword
+      username: defaultUsername,        // <-- MATCH SCHEMA FIELD
+      passwordHash: hashedPassword      // <-- MATCH SCHEMA FIELD
     });
 
     await defaultAdmin.save();
 
     res.status(201).json({
       message: "Default admin created successfully",
-      email: defaultEmail,
+      username: defaultUsername,
       note: "Please login with these credentials and change the password"
     });
   } catch (error) {
@@ -145,3 +146,5 @@ router.post("/admin/init", async (req, res) => {
 });
 
 module.exports = router;
+
+

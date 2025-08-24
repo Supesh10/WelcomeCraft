@@ -1,17 +1,22 @@
 const cron = require("node-cron");
-const { fetchAndSaveSilverPrice } = require("../Controller/silverPriceController");
-const { fetchAndSaveGoldPrice } = require("../Controller/goldPriceController");
+const updateSilver = require("../Controller/silverPriceController").fetchAndSavePrice;
+const updateGold = require("../Controller/goldPriceController").fetchAndSavePrice;
 
-cron.schedule("*/30 6-14 * * *", async () => {
-  console.log("🕐 Running scheduled silver price update...");
+
+
+cron.schedule("*/15 5-13 * * *", async () => {
+  console.log("🕐 Running scheduled price updates...");
   try {
-    const silverResult = await fetchAndSaveSilverPrice();
-    const goldResult = await fetchAndSaveGoldPrice();
+    const silverResult = await updateSilver();
     console.log(
-      `✅ Cron: Price ${silverResult.saved ? "saved" : "unchanged"} at Nrs. ${
-        silverResult.price
-      }`
-       `✅ Cron: Price ${goldResult.saved ? "saved" : "unchanged"} at Nrs. ${
+      `✅ Silver Cron: Price ${
+        silverResult.saved ? "saved" : "unchanged"
+      } at Rs. ${silverResult.price}`
+    );
+
+    const goldResult = await updateGold();
+    console.log(
+      `✅ Gold Cron: Price ${goldResult.saved ? "saved" : "unchanged"} at Rs. ${
         goldResult.price
       }`
     );
@@ -20,5 +25,5 @@ cron.schedule("*/30 6-14 * * *", async () => {
   }
 });
 
-console.log("🕰️ Cron scheduled: Every 30 mins from 6 AM to 2 PM");
+console.log("🕰️ Cron scheduled: Every 15 mins from 5 AM to 1 PM");
 module.exports = cron;

@@ -96,8 +96,13 @@ class ApiService {
     return this.makeRequest('/silver/today');
   }
 
-  static async getSilverPriceHistory() {
-    return this.makeRequest('/silver/history');
+  static async getSilverPriceHistory(params = {}) {
+    const queryParams = new URLSearchParams();
+    if (params.limit) queryParams.append('limit', params.limit);
+    if (params.page) queryParams.append('page', params.page);
+    
+    const queryString = queryParams.toString();
+    return this.makeRequest(`/silver/history${queryString ? '?' + queryString : ''}`);
   }
 
   static async manualSilverPriceScrape() {
@@ -110,8 +115,13 @@ class ApiService {
     return this.makeRequest('/gold/today');
   }
 
-  static async getGoldPriceHistory() {
-    return this.makeRequest('/gold/history');
+  static async getGoldPriceHistory(params = {}) {
+    const queryParams = new URLSearchParams();
+    if (params.limit) queryParams.append('limit', params.limit);
+    if (params.page) queryParams.append('page', params.page);
+    
+    const queryString = queryParams.toString();
+    return this.makeRequest(`/gold/history${queryString ? '?' + queryString : ''}`);
   }
 
   static async manualGoldPriceScrape() {
@@ -144,10 +154,10 @@ class ApiService {
   }
 
   // Admin API methods
-  static async adminLogin(email, password) {
+  static async adminLogin(username, password) {
     return this.makeRequest('/admin/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, password }),
     });
   }
 

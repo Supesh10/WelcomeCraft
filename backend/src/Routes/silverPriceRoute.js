@@ -4,7 +4,7 @@ const controller = require("../Controller/silverPriceController");
 const { fetchAndSavePrice } = require("../Controller/silverPriceController");
 
 // Manual trigger to fetch & save silver price
-router.post("/update", async (req, res) => {
+exports.updateSilver = router.post("/silver/update", async (req, res) => {
   try {
     const result = await fetchAndSavePrice();
     res.status(200).json({ message: "Silver price updated", result });

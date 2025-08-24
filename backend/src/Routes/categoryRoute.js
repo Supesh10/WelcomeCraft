@@ -6,6 +6,7 @@ const authMiddleware = require("../Middleware/authMiddleware");
 // Public routes
 router.get("/categories", categoryController.getAllCategories); // Get all categories
 router.get("/categories/:categoryId", categoryController.getCategoryById); // Get single category
+router.get("/categories/custom/:customId", categoryController.getCategoryByCustomId); // Get category by custom ID
 router.get("/categories/:categoryId/products", categoryController.getProductsByCategory); // Get products by category
 
 // Admin protected routes

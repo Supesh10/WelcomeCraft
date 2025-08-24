@@ -4,7 +4,7 @@ const controller = require("../Controller/goldPriceController");
 const { fetchAndSavePrice } = require("../Controller/goldPriceController");
 
 // Manual trigger to fetch & save gold price
-router.post("/gold/update", async (req, res) => {
+exports.updateGold = router.post("/gold/update", async (req, res) => {
   try {
     const result = await fetchAndSavePrice();
     res.status(200).json({ message: "gold price updated", result });

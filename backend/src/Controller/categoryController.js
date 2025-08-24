@@ -4,18 +4,27 @@ const Product = require("../Model/productModel");
 // Create Category
 exports.createCategory = async (req, res) => {
   try {
-    const { name, description, imageUrl } = req.body;
+    const { name, description, imageUrl, categoryId } = req.body;
 
     if (!name) {
       return res.status(400).json({ message: "Category name is required" });
     }
 
-    const exists = await Category.findOne({ name: { $regex: `^${name}$`, $options: 'i' } });
-    if (exists) {
+    // Check for duplicate name
+    const nameExists = await Category.findOne({ name: { $regex: `^${name}$`, $options: 'i' } });
+    if (nameExists) {
       return res.status(400).json({ message: "Category with this name already exists" });
     }
 
-    const newCategory = new Category({ name, description, imageUrl });
+    // Check for duplicate custom ID if provided
+    if (categoryId) {
+      const idExists = await Category.findOne({ categoryId });
+      if (idExists) {
+        return res.status(400).json({ message: "Category with this ID already exists" });
+      }
+    }
+
+    const newCategory = new Category({ name, description, imageUrl, categoryId });
     await newCategory.save();
 
     res.status(201).json({ 
@@ -56,7 +65,7 @@ exports.getAllCategories = async (req, res) => {
   }
 };
 
-// Get Single Category
+// Get Single Category by MongoDB ID
 exports.getCategoryById = async (req, res) => {
   try {
     const category = await Category.findById(req.params.categoryId);
@@ -66,6 +75,20 @@ exports.getCategoryById = async (req, res) => {
     res.status(200).json(category);
   } catch (error) {
     res.status(500).json({ message: "Error fetching category", error });
+  }
+};
+
+// Get Single Category by Custom ID
+exports.getCategoryByCustomId = async (req, res) => {
+  try {
+    const { customId } = req.params;
+    const category = await Category.findByCategoryId(parseInt(customId));
+    if (!category)
+      return res.status(404).json({ message: "Category not found" });
+
+    res.status(200).json(category);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching category", error: error.message });
   }
 };
 
