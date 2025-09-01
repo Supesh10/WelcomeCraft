@@ -203,6 +203,24 @@ const HomePage = () => {
                     >
                       Rs. {silverPrice.pricePerTola?.toLocaleString()} per tola
                     </div>
+                    <div
+                      className="text-lg font-bold"
+                      style={{
+                        color: silverPrice.dailyChange
+                          ?.toString()
+                          .startsWith("+")
+                          ? "#228B22" // green for positive
+                          : silverPrice.dailyChange?.toString().startsWith("-")
+                          ? "#D1000A" // red for negative
+                          : "#6B6666", // grey for neutral or 0
+                      }}
+                    >
+                      {silverPrice.dailyChange?.toString().startsWith("+") ||
+                      silverPrice.dailyChange?.toString().startsWith("-")
+                        ? silverPrice.dailyChange?.toLocaleString()
+                        : `~${silverPrice.dailyChange?.toLocaleString()}`}
+                    </div>
+
                     <p
                       className="text-xs relative z-10"
                       style={{ color: "#666" }}
@@ -248,6 +266,21 @@ const HomePage = () => {
                       style={{ color: "#5c4a00" }}
                     >
                       Rs. {goldPrice.pricePerTola?.toLocaleString()} per tola
+                    </div>
+                    <div
+                      className="text-lg font-bold"
+                      style={{
+                        color: goldPrice.dailyChange?.toString().startsWith("+")
+                          ? "#228B22" // green for positive
+                          : goldPrice.dailyChange?.toString().startsWith("-")
+                          ? "#D1000A" // red for negative
+                          : "#6B6666", // grey for neutral or 0
+                      }}
+                    >
+                      {goldPrice.dailyChange?.toString().startsWith("+") ||
+                      goldPrice.dailyChange?.toString().startsWith("-")
+                        ? goldPrice.dailyChange?.toLocaleString()
+                        : `~${goldPrice.dailyChange?.toLocaleString()}`}
                     </div>
                     <p
                       className="text-xs relative z-10"

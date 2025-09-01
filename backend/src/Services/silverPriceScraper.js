@@ -3,31 +3,37 @@ const cheerio = require("cheerio");
 
 async function scrapeSilverPrice() {
   try {
-    const { data: html } = await axios.get(
-      "https://www.sharesansar.com/bullion"
-    );
+    const { data: html } = await axios.get(process.env.SILVER_PRICE_API_URL);
     const $ = cheerio.load(html);
 
-    // Find the row that contains "Silver"
-    const silverRow = $("table tbody tr").filter((i, el) => {
-      return $(el).find("td").first().text().trim().toLowerCase() === "silver";
-    });
+    // Select the td with background-color: silver
+    const silverCell = $("td[style*='background-color: silver']");
 
-    if (!silverRow.length) {
-      throw new Error("Silver price row not found on sharesansar.com");
+    if (!silverCell.length) {
+      throw new Error("Silver cell not found on sharesansar.com");
     }
 
-    // Get the price from the third column
-    const priceText = silverRow.find("td").eq(2).text().trim();
-    const price = parseFloat(priceText.replace(/Rs\.|,/g, "").trim());
+    // Get price text inside <p>
+    const priceText = silverCell.find("h4 p").text().trim();
+
+    // Clean the value -> remove "Rs.", commas, and "/tola"
+    const price = parseFloat(priceText.replace(/Rs\.|,|\/tola/gi, "").trim());
 
     if (isNaN(price)) {
       throw new Error(`Parsed silver price is invalid: ${priceText}`);
     }
 
+    // Extract the daily change text
+    const changeText = silverCell.find("h5 p b font").text().trim();
+    const dailyChange = changeText
+      ? changeText.replace(/[()]/g, "").trim()
+      : 0;
+
     const scrapedAt = new Date();
-    console.log(`✅ Scraped silver price: Nrs. ${price}`);
-    return { price, scrapedAt };
+    console.log(
+      `✅ Scraped silver price: Nrs. ${price}, Change: ${dailyChange}`
+    );
+    return { price, scrapedAt, dailyChange };
   } catch (err) {
     console.error("❌ Error scraping silver price:", err.message);
     throw err;
@@ -35,3 +41,5 @@ async function scrapeSilverPrice() {
 }
 
 module.exports = { scrapeSilverPrice };
+
+// Test run

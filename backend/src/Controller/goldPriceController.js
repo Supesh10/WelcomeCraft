@@ -11,7 +11,7 @@ function getNepalDate() {
 
 // Fetch and save price if new
 exports.fetchAndSavePrice = async () => {
-  const { price, scrapedAt } = await scrapeGoldPrice();
+  const { price, scrapedAt, dailyChange } = await scrapeGoldPrice();
   const effectiveDate = getNepalDate();
 
   const existing = await GoldPrice.findOne({ effectiveDate });
@@ -21,11 +21,12 @@ exports.fetchAndSavePrice = async () => {
       pricePerTola: price,
       effectiveDate,
       lastScrapedAt: scrapedAt,
+      dailyChange: dailyChange 
     });
     console.log(
       `✅ New price saved: ${price} on ${effectiveDate.toDateString()}`
     );
-    return { price, saved: true };
+    return { price, saved: true, dailyChange  };
   }
 
   if (existing.pricePerTola !== price && scrapedAt > existing.lastScrapedAt) {
@@ -35,18 +36,18 @@ exports.fetchAndSavePrice = async () => {
     console.log(
       `🔄 Price updated: ${price} on ${effectiveDate.toDateString()}`
     );
-    return { price, saved: true };
+    return { price, saved: true, dailyChange  };
   }
 
   console.log("ℹ️ Price unchanged, no update needed.");
-  return { price, saved: false };
+  return { price, saved: false, dailyChange  };
 };
 
 // Manual test scrape
 exports.testScraping = async (req, res) => {
   try {
-    const { price, scrapedAt } = await scrapeGoldPrice();
-    res.status(200).json({ message: "Scraping successful", price, scrapedAt });
+    const { price, scrapedAt, dailyChange } = await scrapeGoldPrice();
+    res.status(200).json({ message: "Scraping successful", price, scrapedAt, dailyChange  });
   } catch (err) {
     res.status(500).json({ message: "Scraping failed", error: err.message });
   }

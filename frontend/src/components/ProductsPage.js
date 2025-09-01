@@ -115,9 +115,7 @@ const ProductsPage = () => {
     }
 
     if (silverPrice && product.weightInTola && product.makingCost) {
-      const totalPrice =
-        silverPrice.pricePerTola * product.weightInTola + product.makingCost;
-      return `Rs. ${Math.round(totalPrice).toLocaleString()}`;
+      return `Silver per tola + Making charge Rs. ${silverPrice.pricePerTola.toString()} + ${product.makingCost.toString()}`;
     }
 
     return "Price on request";
