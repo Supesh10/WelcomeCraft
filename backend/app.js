@@ -4,7 +4,7 @@ const cors = require("cors");
 const app = express();
 const connectDB = require("./src/Config/db");
 require("./src/Services/cron");
-
+const path = require("path");
 // Import routes
 const silverPrice = require("./src/Routes/silverPriceRoute");
 const goldPrice = require("./src/Routes/goldPriceRoute");
@@ -33,13 +33,16 @@ app.use("/api", silverPrice);
 app.use("/api", order);
 app.use("/api", admin);
 app.use("/api", cart);
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+
 
 // Health check endpoint
 app.get("/health", (req, res) => {
-  res.status(200).json({ 
-    status: "OK", 
+  res.status(200).json({
+    status: "OK",
     message: "Welcome-Craft API is running",
-    timestamp: new Date().toISOString() 
+    timestamp: new Date().toISOString(),
   });
 });
 

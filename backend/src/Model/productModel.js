@@ -6,46 +6,37 @@ const productSchema = new mongoose.Schema(
     description: { type: String, required: true },
     imageUrl: { type: String, required: true },
 
-    // Category - linking to the Category model
+    // Embed full category details
     category: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
-      required: true,
+      categoryId: { type: Number, required: true },
+      name: { type: String, required: true },
+      description: { type: String },
+      imageUrl: [{ type: String }],
+      type: {
+        type: String,
+        required: true,
+        enum: ["silver", "customSilver", "gold", "other"],
+        default: "other",
+      },
     },
 
     // Gold-specific fields (constant price)
-    constantPrice: {
-      type: Number,
-    },
-    height: {
-      type: String,
-    },
+    constantPrice: Number,
+    height: String,
 
-    // Silver stocked products (dynamic price based on silver price)
-    silverPricePerTola: {
-      type: Number,
-    },
-    makingCost: {
-      type: Number,
-    },
-    weightInTola: {
-      type: Number,
-    },
+    // Silver stocked products
+    silverPricePerTola: Number,
+    makingCost: Number,
+    weightInTola: Number,
 
-    // Silver custom products (dynamic price + weight range)
+    // Silver custom products
     weightRange: {
-      min: {
-        type: Number,
-      },
-      max: {
-        type: Number,
-      },
+      min: Number,
+      max: Number,
     },
 
     // Flags
-    isCustomizable: {
-      type: Boolean,
-    },
+    isCustomizable: Boolean,
   },
   { timestamps: true }
 );

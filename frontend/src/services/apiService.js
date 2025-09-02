@@ -1,5 +1,5 @@
 const API_BASE_URL =
-  process.env.REACT_APP_API_URL || "http://localhost:8081/api";
+  process.env.REACT_APP_API_URL;
 
 class ApiService {
   // Helper method for making API calls
@@ -61,8 +61,9 @@ class ApiService {
   }
 
   static async getProductById(productId) {
+      console.log(productId);
     return this.makeRequest(`/products/${productId}`);
-    console.log(productId);
+  
   }
 
   static async createProduct(productData) {
