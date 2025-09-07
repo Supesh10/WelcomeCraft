@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
 import {
-  ChevronLeft,
-  ChevronRight,
   ShoppingCart,
   Eye,
   Star,
@@ -117,7 +115,7 @@ const HomePage = () => {
         <div className="text-center">
           <div className="spinner mb-4"></div>
           <p style={{ color: "var(--stone-gray)" }}>
-            Loading Buddhist treasures...
+            Loading...
           </p>
         </div>
       </div>
@@ -367,11 +365,11 @@ const HomePage = () => {
                     style={{ backgroundColor: "var(--cream)" }}
                   >
                     <span className="text-3xl">
-                      {category.name.includes("Gold")
+                      {(category.name || "").includes("Gold")
                         ? "🏆"
-                        : category.name.includes("Silver")
+                        : (category.name || "").includes("Silver")
                         ? "🥈"
-                        : category.name.includes("Bronze")
+                        : (category.name || "").includes("Bronze")
                         ? "🥉"
                         : "🎨"}
                     </span>
@@ -431,7 +429,7 @@ const HomePage = () => {
                   <div className="relative overflow-hidden">
                     <img
                       src={
-                        product.imageUrl ||
+                        (Array.isArray(product.imageUrl) ? product.imageUrl[0] : product.imageUrl) ||
                         "https://via.placeholder.com/300x300?text=Product"
                       }
                       alt={product.title}
@@ -456,7 +454,7 @@ const HomePage = () => {
                         </button>
                       </div>
                     </div>
-                    {product.category?.name.includes("Silver") && (
+                    {product.category?.name?.includes("Silver") && (
                       <div
                         className="absolute top-2 right-2 px-2 py-1 rounded text-xs font-semibold text-white"
                         style={{ backgroundColor: "var(--saffron)" }}

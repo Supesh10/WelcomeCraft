@@ -5,6 +5,7 @@ const app = express();
 const connectDB = require("./src/Config/db");
 require("./src/Services/cron");
 const path = require("path");
+
 // Import routes
 const silverPrice = require("./src/Routes/silverPriceRoute");
 const goldPrice = require("./src/Routes/goldPriceRoute");
@@ -23,19 +24,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded files
-app.use("/uploads", express.static(__dirname + "/uploads"));
-
-// API Routes
-app.use("/api", product);
-app.use("/api", category);
-app.use("/api", goldPrice);
-app.use("/api", silverPrice);
-app.use("/api", order);
-app.use("/api", admin);
-app.use("/api", cart);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
-
 
 // Health check endpoint
 app.get("/health", (req, res) => {
@@ -50,6 +39,24 @@ app.get("/health", (req, res) => {
 app.get("/", (req, res) => {
   res.json({ message: "Welcome to Welcome-Craft API" });
 });
+
+// API Routes
+app.use("/api", product);
+app.use("/api", category);
+app.use("/api", goldPrice);
+app.use("/api", silverPrice);
+app.use("/api", order);
+app.use("/api", admin);
+app.use("/api", cart);
+
+// Import error handling middleware
+const { errorHandler, notFound } = require('./src/Middleware/errorHandler');
+
+// 404 handler for unmatched routes
+app.use(notFound);
+
+// Global error handling middleware (must be last)
+app.use(errorHandler);
 
 const port = process.env.PORT || process.env.port || 8081;
 

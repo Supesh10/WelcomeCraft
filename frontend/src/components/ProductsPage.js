@@ -115,7 +115,7 @@ const ProductsPage = () => {
     }
 
     if (silverPrice && product.weightInTola && product.makingCost) {
-      return `Silver per tola + Making charge Rs. ${silverPrice.pricePerTola.toString()} + ${product.makingCost.toString()}`;
+      return `Silver per tola + Making charge Rs. ${silverPrice.pricePerTola.toString()} + ${product.makingCost.toString()} per tola`;
     }
 
     return "Price on request";
@@ -490,7 +490,7 @@ const ProductsPage = () => {
                       >
                         <img
                           src={
-                            product.imageUrl ||
+                            (Array.isArray(product.imageUrl) ? product.imageUrl[0] : product.imageUrl) ||
                             "https://via.placeholder.com/300x300?text=Product"
                           }
                           alt={product.title}
@@ -519,7 +519,7 @@ const ProductsPage = () => {
                             </button>
                           </div>
                         </div>
-                        {product.category?.name.includes("Silver") && (
+                        {product.category?.name?.includes("Silver") && (
                           <div
                             className="absolute top-2 right-2 px-2 py-1 rounded text-xs font-semibold text-white"
                             style={{ backgroundColor: "var(--saffron)" }}

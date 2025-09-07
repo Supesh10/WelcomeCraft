@@ -64,7 +64,7 @@ exports.getAllCategories = async (req, res) => {
       const categoriesWithCounts = await Promise.all(
         categories.map(async (category) => {
           const productCount = await Product.countDocuments({
-            category: category._id,
+            'category.categoryId': category._id.toString(),
           });
           return { ...category.toObject(), productCount };
         })
@@ -159,13 +159,12 @@ exports.getProductsByCategory = async (req, res) => {
     if (!category)
       return res.status(404).json({ message: "Category not found" });
 
-    const products = await Product.find({ category: categoryId })
-      .populate({ path: "category", select: "name description imageUrl" })
+    const products = await Product.find({ 'category.categoryId': categoryId })
       .limit(limit)
       .skip(skip)
       .sort({ createdAt: -1 });
 
-    const total = await Product.countDocuments({ category: categoryId });
+    const total = await Product.countDocuments({ 'category.categoryId': categoryId });
 
     res.status(200).json({
       category: {
@@ -199,7 +198,7 @@ exports.deleteCategory = async (req, res) => {
   try {
     const { categoryId } = req.params;
 
-    const productCount = await Product.countDocuments({ category: categoryId });
+    const productCount = await Product.countDocuments({ 'category.categoryId': categoryId });
     if (productCount > 0) {
       return res.status(400).json({
         message: `Cannot delete category. It has ${productCount} products. Please move or delete products first.`,

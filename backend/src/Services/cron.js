@@ -4,7 +4,7 @@ const updateGold = require("../Controller/goldPriceController").fetchAndSavePric
 
 
 
-cron.schedule("*/15 5-13 * * *", async () => {
+cron.schedule("*/30 6-14 * * *", async () => {
   console.log("🕐 Running scheduled price updates...");
   try {
     const silverResult = await updateSilver();
@@ -25,5 +25,5 @@ cron.schedule("*/15 5-13 * * *", async () => {
   }
 });
 
-console.log("🕰️ Cron scheduled: Every 15 mins from 5 AM to 1 PM");
+console.log("🕰️ Cron scheduled: Every 30 mins from 6 AM to 2 PM");
 module.exports = cron;

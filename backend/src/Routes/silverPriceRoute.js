@@ -16,6 +16,7 @@ exports.updateSilver = router.post("/silver/update", async (req, res) => {
 
 
 router.get("/silver/test-scrape", controller.testScraping);
+router.post("/silver/scrape", controller.manualScrapeAndSave);
 router.get("/silver/today", controller.getLatestPrice);
 router.get("/silver/history", controller.getPriceHistory);
 
