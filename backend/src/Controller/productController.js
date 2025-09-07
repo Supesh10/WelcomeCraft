@@ -1,81 +1,54 @@
 const Product = require("../Model/productModel");
 const Category = require("../Model/categoryModel");
 
+
 // Create a new product
 exports.createProduct = async (req, res) => {
   try {
     const {
       title,
       description,
-      imageUrl,
-      category,
-      constantPrice,
+      category, // frontend sends category ID
+      length,
+      width,
       height,
-      silverPricePerTola,
-      weightInTola,
       makingCost,
-      weightRange,
-      isCustomizable,
+      weightInTola,
+      customizable
     } = req.body;
 
-    // Check if category exists
+    // Convert uploaded files to array of image URLs
+    const images = req.files ? req.files.map(file => `/uploads/${file.filename}`) : [];
+
+    // Validate category by ID
     const categoryDoc = await Category.findById(category);
     if (!categoryDoc) {
       return res.status(400).json({ message: "Category not found" });
     }
 
-    // Validate required fields based on category type
-    if (
-      (categoryDoc.name === "Silver Crafts" ||
-        categoryDoc.name === "Custom Silver") &&
-      (!makingCost || !weightInTola)
-    ) {
-      return res.status(400).json({
-        message:
-          "Silver products require silverPricePerTola, makingCost, and weightInTola",
-      });
-    }
-
-    if (
-      categoryDoc.name === "Custom Silver" &&
-      (!weightRange || !weightRange.min || !weightRange.max)
-    ) {
-      return res.status(400).json({
-        message:
-          "Custom Silver products require weightRange with min and max values",
-      });
-    }
-
-    if (categoryDoc.name === "Gold Statue" && (!constantPrice || !height)) {
-      return res.status(400).json({
-        message: "Gold Statue products require constantPrice and height",
-      });
-    }
-
-    // Create the product
-    const newProduct = new Product({
+    // Create new product
+    const product = new Product({
       title,
       description,
-      imageUrl,
-      category,
-      constantPrice,
-      height,
-      silverPricePerTola,
-      weightInTola,
-      makingCost,
-      weightRange,
-      isCustomizable,
+      images, // array of image paths
+      category: categoryDoc._id,
+      dimensions: {
+        length: length || 0,
+        width: width || 0,
+        height: height || 0
+      },
+      makingCost: makingCost || 0,
+      weightInTola: weightInTola || 0,
+      isCustomizable: customizable
     });
 
-    await newProduct.save();
-
-    res
-      .status(201)
-      .json({ message: "Product created successfully", product: newProduct });
+    await product.save();
+    res.status(201).json(product);
   } catch (error) {
-    res.status(500).json({ message: "Error creating product", error });
+    res.status(500).json({ message: error.message });
   }
 };
+
 
 // Get all products with optional category filtering
 exports.getAllProducts = async (req, res) => {

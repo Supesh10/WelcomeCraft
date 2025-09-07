@@ -12,6 +12,8 @@ import Footer from './components/Footer';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import ApiService from './services/apiService';
+import ProductInputForm from './components/admin/ProductInputForm';
+import NavbarAdmin from './components/admin/NavbarAdmin';
 
 function AppWrapper() {
   const location = useLocation();
@@ -26,11 +28,13 @@ function AppWrapper() {
   if (isAdminRoute) {
     return (
       <div className="min-h-screen">
-        <Routes>
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          {/* Add more admin routes here as needed */}
-        </Routes>
+        <NavbarAdmin />
+          <Routes>
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path='/admin/createprod' element={<ProductInputForm/>} />
+            {/* Add more admin routes here as needed */}
+          </Routes>
       </div>
     );
   }

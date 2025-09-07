@@ -4,7 +4,7 @@ const productSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
     description: { type: String, required: true },
-    imageUrl: { type: String, required: true },
+    images: [{ type: String, required: true }],
 
     // Category - linking to the Category model
     category: {
