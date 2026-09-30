@@ -1,4 +1,9 @@
 const mongoose = require("mongoose");
+const {
+  MATERIAL_TYPES,
+  PRODUCT_TYPE_BY_MATERIAL,
+  getProductSchemaSpec,
+} = require("../Config/productTypes");
 
 // Counter schema for category IDs
 const counterSchema = new mongoose.Schema({
@@ -18,9 +23,27 @@ const categorySchema = new mongoose.Schema(
     name: { type: String, required: true, unique: true },
     description: String,
     imageUrl: String,
+
+    // Decides which product schema products in this category use:
+    // silver -> SilverProduct, gold -> GoldProduct, copper/bronze -> MetalProduct
+    materialType: {
+      type: String,
+      enum: MATERIAL_TYPES,
+      required: true,
+      lowercase: true,
+      trim: true,
+    },
   },
-  { timestamps: true }
+  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
+
+categorySchema.virtual("productType").get(function () {
+  return PRODUCT_TYPE_BY_MATERIAL[this.materialType];
+});
+
+categorySchema.methods.getProductSchemaSpec = function () {
+  return getProductSchemaSpec(this.materialType);
+};
 
 // Generate incremental numeric categoryId before saving
 categorySchema.pre("save", async function (next) {

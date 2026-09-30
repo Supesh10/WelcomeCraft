@@ -1,30 +1,11 @@
 const Cart = require("../Model/cartModel");
 const Product = require("../Model/productModel");
-const { getCurrentSilverPrice } = require("../Services/silverPriceScraper");
+const {
+  calculatePrice,
+  validateCustomSpecification,
+  isCustomSilver,
+} = require("../Services/pricingService");
 const { generateCustomerOrderUrl } = require("../Services/messagingService");
-
-// Helper function to calculate current product price
-async function calculateProductPrice(product) {
-  if (product.constantPrice) {
-    return product.constantPrice;
-  }
-
-  if (
-    product.category.name === "Silver Crafts" ||
-    product.category.name === "Custom Silver"
-  ) {
-    if (product.weightInTola && product.makingCost) {
-      const silverPrice = await getCurrentSilverPrice();
-      if (silverPrice) {
-        return (
-          silverPrice.pricePerTola * product.weightInTola + product.makingCost
-        );
-      }
-    }
-  }
-
-  return 0; // Fallback
-}
 
 // Get cart by session ID
 getCart = async (req, res) => {
@@ -57,7 +38,7 @@ getCart = async (req, res) => {
 addToCart = async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const { productId, quantity = 1, customization } = req.body;
+    const { productId, quantity = 1, customization, customSpecification } = req.body;
 
     if (!sessionId || !productId) {
       return res
@@ -71,31 +52,43 @@ addToCart = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // Calculate current price
-    const currentPrice = await calculateProductPrice(product);
+    // Custom silver products need the customer's specification
+    const { errors, specification } = validateCustomSpecification(
+      product,
+      customSpecification
+    );
+    if (errors.length) {
+      return res
+        .status(400)
+        .json({ message: "Invalid custom specification", errors });
+    }
 
-    // Get current silver price for snapshot
-    let silverPriceSnapshot = null;
-    if (
-      product.category.name === "Silver Crafts" ||
-      product.category.name === "Custom Silver"
-    ) {
-      const silverPrice = await getCurrentSilverPrice();
-      silverPriceSnapshot = silverPrice ? silverPrice.pricePerTola : null;
+    const { price, silverRate } = await calculatePrice(product, {
+      customSpecification: specification,
+    });
+    if (price == null) {
+      return res.status(400).json({
+        message: "Price for this product is not available right now",
+      });
     }
 
     // Find or create cart
     const cart = await Cart.findOrCreateBySession(sessionId);
 
-    // Check if product already exists in cart
-    const existingItemIndex = cart.items.findIndex(
-      (item) => item.product.toString() === productId.toString()
-    );
+    // Custom pieces are each made to their own spec, so never merge them
+    const existingItemIndex = isCustomSilver(product)
+      ? -1
+      : cart.items.findIndex(
+          (item) =>
+            (item.product._id || item.product).toString() ===
+            productId.toString()
+        );
 
     if (existingItemIndex >= 0) {
       // Update existing item quantity
       cart.items[existingItemIndex].quantity += quantity;
-      cart.items[existingItemIndex].priceSnapshot = currentPrice; // Update to current price
+      cart.items[existingItemIndex].priceSnapshot = price; // Update to current price
+      cart.items[existingItemIndex].silverPriceSnapshot = silverRate;
       if (customization) {
         cart.items[existingItemIndex].customization = customization;
       }
@@ -104,9 +97,10 @@ addToCart = async (req, res) => {
       cart.items.push({
         product: productId,
         quantity,
-        priceSnapshot: currentPrice,
-        silverPriceSnapshot,
+        priceSnapshot: price,
+        silverPriceSnapshot: silverRate,
         customization,
+        customSpecification: specification,
         addedAt: new Date(),
       });
     }
@@ -144,7 +138,7 @@ addToCart = async (req, res) => {
 updateCartItem = async (req, res) => {
   try {
     const { sessionId, itemId } = req.params;
-    const { quantity, customization } = req.body;
+    const { quantity, customization, customSpecification } = req.body;
 
     if (!sessionId || !itemId) {
       return res
@@ -176,6 +170,31 @@ updateCartItem = async (req, res) => {
       if (quantity) cart.items[itemIndex].quantity = quantity;
       if (customization !== undefined)
         cart.items[itemIndex].customization = customization;
+
+      // Re-validate and re-price when the custom specification changes
+      if (customSpecification !== undefined) {
+        const product = await Product.findById(cart.items[itemIndex].product);
+        if (!product) {
+          return res.status(404).json({ message: "Product not found" });
+        }
+        const { errors, specification } = validateCustomSpecification(
+          product,
+          customSpecification
+        );
+        if (errors.length) {
+          return res
+            .status(400)
+            .json({ message: "Invalid custom specification", errors });
+        }
+        const { price, silverRate } = await calculatePrice(product, {
+          customSpecification: specification,
+        });
+        cart.items[itemIndex].customSpecification = specification;
+        if (price != null) {
+          cart.items[itemIndex].priceSnapshot = price;
+          cart.items[itemIndex].silverPriceSnapshot = silverRate;
+        }
+      }
     }
 
     // Recalculate totals and save
@@ -387,6 +406,18 @@ generateCheckoutUrl = async (req, res) => {
       message += `   Quantity: ${item.quantity}\n`;
       message += `   Price: Rs. ${item.priceSnapshot} each\n`;
       message += `   Subtotal: Rs. ${item.priceSnapshot * item.quantity}\n`;
+      const spec = item.customSpecification;
+      if (spec) {
+        message += `   *Custom Specification:*\n`;
+        if (spec.preferredWeight) message += `   - Weight: ${spec.preferredWeight} tola\n`;
+        if (spec.size && spec.size.height)
+          message += `   - Size: ${[spec.size.height, spec.size.width, spec.size.length].filter(Boolean).join(" x ")} ${spec.size.unit || ""}\n`;
+        if (spec.design) message += `   - Design: ${spec.design}\n`;
+        if (spec.designNotes) message += `   - Notes: ${spec.designNotes}\n`;
+        if (item.silverPriceSnapshot) message += `   - Silver rate: Rs. ${item.silverPriceSnapshot}/tola\n`;
+        if (spec.estimatedCompletion && spec.estimatedCompletion.latest)
+          message += `   - Est. ready by: ${new Date(spec.estimatedCompletion.latest).toDateString()}\n`;
+      }
       if (item.customization) {
         message += `   *Custom Requirements:* ${item.customization}\n`;
       }

@@ -8,6 +8,8 @@ router.get("/categories", categoryController.getAllCategories); // Get all categ
 router.get("/categories/:categoryId", categoryController.getCategoryById); // Get single category
 router.get("/categories/custom/:customId", categoryController.getCategoryByCustomId); // Get category by custom ID
 router.get("/categories/:categoryId/products", categoryController.getProductsByCategory); // Get products by category
+router.get("/categories/:categoryId/schema", categoryController.getCategoryProductSchema); // Product fields for this category
+router.get("/product-schemas/:materialType", categoryController.getProductSchemaByMaterial); // Product fields for a material type
 
 // Admin protected routes
 router.post("/categories", authMiddleware, categoryController.createCategory); // Create category

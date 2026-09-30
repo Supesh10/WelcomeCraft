@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const customSpecificationSchema = require('./customSpecificationSchema');
 
 // Cart Item Schema for individual products in cart
 const cartItemSchema = new mongoose.Schema({
@@ -21,8 +22,9 @@ const cartItemSchema = new mongoose.Schema({
     type: Number // Silver price per tola when added (for silver products)
   },
   customization: {
-    type: String // Custom requirements for the product
+    type: String // Free-text notes for the product
   },
+  customSpecification: customSpecificationSchema, // Custom silver products
   addedAt: {
     type: Date,
     default: Date.now

@@ -1,13 +1,22 @@
 const Category = require("../Model/categoryModel");
 const Product = require("../Model/productModel");
+const { MATERIAL_TYPES, getProductSchemaSpec } = require("../Config/productTypes");
+const { getLatestSilverRate, withPricing } = require("../Services/pricingService");
 
 // Create Category
 exports.createCategory = async (req, res) => {
   try {
     const { name, description, imageUrl, categoryId } = req.body;
+    const materialType = req.body.materialType?.toLowerCase();
 
     if (!name) {
       return res.status(400).json({ message: "Category name is required" });
+    }
+
+    if (!MATERIAL_TYPES.includes(materialType)) {
+      return res.status(400).json({
+        message: `materialType is required and must be one of: ${MATERIAL_TYPES.join(", ")}`,
+      });
     }
 
     // Check for duplicate name
@@ -24,7 +33,7 @@ exports.createCategory = async (req, res) => {
       }
     }
 
-    const newCategory = new Category({ name, description, imageUrl, categoryId });
+    const newCategory = new Category({ name, description, imageUrl, categoryId, materialType });
     await newCategory.save();
 
     res.status(201).json({ 
@@ -96,19 +105,38 @@ exports.getCategoryByCustomId = async (req, res) => {
 exports.updateCategory = async (req, res) => {
   try {
     const { name, description, imageUrl } = req.body;
+    const materialType = req.body.materialType?.toLowerCase();
 
-    const category = await Category.findByIdAndUpdate(
-      req.params.categoryId,
-      { name, description, imageUrl },
-      { new: true }
-    );
-
+    const category = await Category.findById(req.params.categoryId);
     if (!category)
       return res.status(404).json({ message: "Category not found" });
 
+    if (materialType && materialType !== category.materialType) {
+      if (!MATERIAL_TYPES.includes(materialType)) {
+        return res.status(400).json({
+          message: `materialType must be one of: ${MATERIAL_TYPES.join(", ")}`,
+        });
+      }
+      // Products are stored with the schema of their category's material,
+      // so the material can only change while the category is empty.
+      const productCount = await Product.countDocuments({ category: category._id });
+      if (category.materialType && productCount > 0) {
+        return res.status(400).json({
+          message: `Cannot change materialType of a category with ${productCount} products.`,
+          productCount,
+        });
+      }
+      category.materialType = materialType;
+    }
+
+    if (name !== undefined) category.name = name;
+    if (description !== undefined) category.description = description;
+    if (imageUrl !== undefined) category.imageUrl = imageUrl;
+    await category.save();
+
     res.status(200).json({ message: "Category updated", category });
   } catch (error) {
-    res.status(500).json({ message: "Error updating category", error });
+    res.status(500).json({ message: "Error updating category", error: error.message });
   }
 };
 
@@ -128,26 +156,35 @@ exports.getProductsByCategory = async (req, res) => {
     const skip = (page - 1) * limit;
     
     // Get products in this category
-    const products = await Product.find({ category: categoryId })
+    const { silverType, goldFinish, platingMethod } = req.query;
+    const filter = { category: categoryId };
+    if (silverType) filter.silverType = silverType;
+    if (goldFinish) filter.goldFinish = goldFinish;
+    if (platingMethod) filter.platingMethod = platingMethod;
+
+    const products = await Product.find(filter)
       .populate({
         path: "category",
-        select: "name description imageUrl"
+        select: "name description imageUrl materialType"
       })
       .limit(parseInt(limit))
       .skip(skip)
       .sort({ createdAt: -1 });
     
     // Get total count
-    const total = await Product.countDocuments({ category: categoryId });
+    const total = await Product.countDocuments(filter);
+    const silverRate = await getLatestSilverRate();
     
     res.status(200).json({
       category: {
         _id: category._id,
         name: category.name,
         description: category.description,
-        imageUrl: category.imageUrl
+        imageUrl: category.imageUrl,
+        materialType: category.materialType,
+        productType: category.productType
       },
-      products,
+      products: await Promise.all(products.map((p) => withPricing(p, silverRate))),
       pagination: {
         currentPage: parseInt(page),
         totalPages: Math.ceil(total / limit),
@@ -186,4 +223,37 @@ exports.deleteCategory = async (req, res) => {
     console.error("Delete category error:", error);
     res.status(500).json({ message: "Error deleting category", error: error.message });
   }
+};
+
+// Get the product fields a category's products use (for building admin forms)
+exports.getCategoryProductSchema = async (req, res) => {
+  try {
+    const category = await Category.findById(req.params.categoryId);
+    if (!category) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+
+    const schema = category.getProductSchemaSpec();
+    if (!schema) {
+      return res.status(400).json({ message: `Category "${category.name}" has no materialType set` });
+    }
+
+    res.status(200).json({
+      category: { _id: category._id, name: category.name, materialType: category.materialType },
+      schema,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching category schema", error: error.message });
+  }
+};
+
+// Get the product fields for a material type without needing a category
+exports.getProductSchemaByMaterial = (req, res) => {
+  const schema = getProductSchemaSpec(req.params.materialType?.toLowerCase());
+  if (!schema) {
+    return res.status(404).json({
+      message: `Unknown material type. Use one of: ${MATERIAL_TYPES.join(", ")}`,
+    });
+  }
+  res.status(200).json({ schema });
 };

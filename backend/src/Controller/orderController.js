@@ -1,6 +1,6 @@
 const Order = require("../Model/orderModel");
 const Product = require("../Model/productModel");
-const SilverPrice = require("../Model/silverPriceModel");
+const { calculatePrice, validateCustomSpecification } = require("../Services/pricingService");
 const { sendWhatsAppOrderNotification } = require("../Services/messagingService");
 
 // Create Order
@@ -14,7 +14,8 @@ exports.createOrder = async (req, res) => {
       productId,
       quantity = 1,
       notes,
-      customization
+      customization,
+      customSpecification
     } = req.body;
 
     // Basic validation
@@ -30,21 +31,15 @@ exports.createOrder = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    let silverPriceSnapshot = null;
-    let totalPrice = null;
-
-    // Calculate price for silver products
-    if (product.category.name === "Silver Crafts" || product.category.name === "Custom Silver") {
-      const todaySilverPrice = await SilverPrice.findOne().sort({ effectiveDate: -1 });
-      if (todaySilverPrice) {
-        silverPriceSnapshot = todaySilverPrice.pricePerTola;
-        if (product.weightInTola && product.makingCost) {
-          totalPrice = (silverPriceSnapshot * product.weightInTola + product.makingCost) * quantity;
-        }
-      }
-    } else if (product.constantPrice) {
-      totalPrice = product.constantPrice * quantity;
+    // Custom silver products need the customer's specification
+    const { errors, specification } = validateCustomSpecification(product, customSpecification);
+    if (errors.length) {
+      return res.status(400).json({ message: "Invalid custom specification", errors });
     }
+
+    const { price, silverRate } = await calculatePrice(product, { customSpecification: specification });
+    const silverPriceSnapshot = silverRate;
+    const totalPrice = price != null ? price * quantity : null;
 
     const newOrder = new Order({
       customerName,
@@ -55,6 +50,7 @@ exports.createOrder = async (req, res) => {
       quantity,
       notes,
       customization,
+      customSpecification: specification,
       silverPriceSnapshot,
       totalPrice,
       status: 'pending'

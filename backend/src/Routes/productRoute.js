@@ -30,7 +30,7 @@ router.get("/products", productController.getAllProducts);
 router.get("/products/:productId",productController.getProductById);
 
 // Update a product
-router.put("/products/:productId", authMiddleware, productController.updateProduct);
+router.put("/products/:productId", authMiddleware, upload.array('images'), productController.updateProduct);
 
 // Delete a product
 router.delete("/products/:productId", authMiddleware, productController.deleteProduct);
