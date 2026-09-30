@@ -1,109 +1,209 @@
 const Product = require("../Model/productModel");
+const { PRODUCT_MODELS } = require("../Model/productModel");
 const Category = require("../Model/categoryModel");
+const { PRODUCT_TYPE_BY_MATERIAL } = require("../Config/productTypes");
+const { getLatestSilverRate, withPricing } = require("../Services/pricingService");
 
+// Multipart forms send nested objects either as `a[b]` fields (parsed by
+// multer) or as JSON strings. Accept both.
+const parseObject = (value) => {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+};
+
+const parseArray = (value) => {
+  if (value === undefined) return undefined;
+  if (Array.isArray(value)) return value;
+  const parsed = parseObject(value);
+  if (Array.isArray(parsed)) return parsed;
+  return String(value)
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+};
+
+// Drop undefined / empty-string values so they don't overwrite on update
+const clean = (obj) => {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
+  const out = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined || value === "") continue;
+    const cleaned = clean(value);
+    if (cleaned && typeof cleaned === "object" && !Array.isArray(cleaned) && !Object.keys(cleaned).length) continue;
+    out[key] = cleaned;
+  }
+  return out;
+};
+
+// Build the fields for a product of the given type from the request body
+function buildProductFields(body, productType, materialType) {
+  const dimensions = parseObject(body.dimensions) || {
+    height: body.height,
+    width: body.width,
+    length: body.length,
+    unit: body.unit,
+  };
+
+  const fields = {
+    title: body.title,
+    description: body.description,
+    dimensions,
+    isActive: body.isActive,
+  };
+
+  if (productType === "silver") {
+    // `customizable` is the old flag from the admin form
+    let silverType = body.silverType;
+    if (!silverType && body.customizable !== undefined) {
+      silverType = String(body.customizable) === "true" ? "custom" : "stock";
+    }
+
+    const customOptions = parseObject(body.customOptions);
+    if (customOptions && customOptions.designOptions !== undefined) {
+      customOptions.designOptions = parseArray(customOptions.designOptions);
+    }
+
+    Object.assign(fields, {
+      silverType,
+      makingCost: body.makingCost,
+      weightInTola: body.weightInTola,
+      stockQuantity: body.stockQuantity,
+      weightRange: parseObject(body.weightRange),
+      customOptions,
+    });
+  } else if (productType === "gold") {
+    Object.assign(fields, {
+      constantPrice: body.constantPrice,
+      goldFinish: body.goldFinish,
+      platingMethod: body.platingMethod,
+      baseMetal: body.baseMetal,
+      weightInKg: body.weightInKg,
+      stockQuantity: body.stockQuantity,
+    });
+  } else if (productType === "metal") {
+    Object.assign(fields, {
+      metal: materialType,
+      constantPrice: body.constantPrice,
+      weightInKg: body.weightInKg,
+      finish: body.finish,
+      stockQuantity: body.stockQuantity,
+    });
+  }
+
+  return clean(fields);
+}
+
+const validationResponse = (res, error) =>
+  res.status(400).json({
+    message: "Product validation failed",
+    errors: Object.fromEntries(
+      Object.entries(error.errors || {}).map(([path, err]) => [path, err.message])
+    ),
+  });
+
+async function resolveCategory(categoryId) {
+  const category = await Category.findById(categoryId).catch(() => null);
+  if (!category) return { error: "Category not found" };
+  const productType = PRODUCT_TYPE_BY_MATERIAL[category.materialType];
+  if (!productType) {
+    return { error: `Category "${category.name}" has no materialType set. Update the category first.` };
+  }
+  return { category, productType };
+}
 
 // Create a new product
 exports.createProduct = async (req, res) => {
   try {
-    const {
-      title,
-      description,
-      category, // frontend sends category ID
-      length,
-      width,
-      height,
-      makingCost,
-      weightInTola,
-      customizable
-    } = req.body;
+    const { category, productType, error } = await resolveCategory(req.body.category);
+    if (error) return res.status(400).json({ message: error });
 
-    // Convert uploaded files to array of image URLs
-    const images = req.files ? req.files.map(file => `/uploads/${file.filename}`) : [];
+    const images = req.files ? req.files.map((file) => `/uploads/${file.filename}`) : [];
 
-    // Validate category by ID
-    const categoryDoc = await Category.findById(category);
-    if (!categoryDoc) {
-      return res.status(400).json({ message: "Category not found" });
-    }
-
-    // Create new product
-    const product = new Product({
-      title,
-      description,
-      images, // array of image paths
-      category: categoryDoc._id,
-      dimensions: {
-        length: length || 0,
-        width: width || 0,
-        height: height || 0
-      },
-      makingCost: makingCost || 0,
-      weightInTola: weightInTola || 0,
-      isCustomizable: customizable
+    const Model = PRODUCT_MODELS[productType];
+    const product = new Model({
+      ...buildProductFields(req.body, productType, category.materialType),
+      images,
+      category: category._id,
     });
 
     await product.save();
-    res.status(201).json(product);
+    await product.populate("category", "name materialType");
+    res.status(201).json({ message: "Product created successfully", product: await withPricing(product) });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    if (error.name === "ValidationError") return validationResponse(res, error);
+    console.error("Create product error:", error);
+    res.status(500).json({ message: "Error creating product", error: error.message });
   }
 };
 
-
-// Get all products with optional category filtering
+// Get all products with optional filtering
 exports.getAllProducts = async (req, res) => {
   try {
-    const { category, categoryName, limit = 50, page = 1 } = req.query;
-    
-    // Build filter object
-    let filter = {};
-    
-    // Filter by category ID
+    const {
+      category,
+      categoryName,
+      materialType,
+      silverType,
+      goldFinish,
+      platingMethod,
+      limit = 50,
+      page = 1,
+    } = req.query;
+
+    const filter = {};
+
     if (category) {
       filter.category = category;
     }
-    
-    // Filter by category name (case-insensitive)
+
     if (categoryName) {
-      const categoryDoc = await Category.findOne({ 
-        name: { $regex: categoryName, $options: 'i' } 
+      const categoryDoc = await Category.findOne({
+        name: { $regex: categoryName, $options: "i" },
       });
-      if (categoryDoc) {
-        filter.category = categoryDoc._id;
-      } else {
-        return res.status(404).json({ 
+      if (!categoryDoc) {
+        return res.status(404).json({
           message: `No category found with name: ${categoryName}`,
-          availableCategories: await Category.find({}, 'name')
+          availableCategories: await Category.find({}, "name materialType"),
         });
       }
+      filter.category = categoryDoc._id;
     }
-    
-    // Calculate pagination
+
+    if (materialType) {
+      const categories = await Category.find({ materialType }, "_id");
+      filter.category = { $in: categories.map((c) => c._id) };
+    }
+
+    if (silverType) filter.silverType = silverType;
+    if (goldFinish) filter.goldFinish = goldFinish;
+    if (platingMethod) filter.platingMethod = platingMethod;
+
     const skip = (page - 1) * limit;
-    
-    // Fetch products with category population
-    const products = await Product.find(filter)
-      .populate({
-        path: "category",
-        select: "name description imageUrl"
-      })
-      .limit(parseInt(limit))
-      .skip(skip)
-      .sort({ createdAt: -1 });
-    
-    // Get total count for pagination
-    const total = await Product.countDocuments(filter);
-    
-    res.status(200).json({ 
-      products,
+
+    const [products, total, silverRate] = await Promise.all([
+      Product.find(filter)
+        .populate({ path: "category", select: "name description imageUrl materialType" })
+        .limit(parseInt(limit))
+        .skip(skip)
+        .sort({ createdAt: -1 }),
+      Product.countDocuments(filter),
+      getLatestSilverRate(),
+    ]);
+
+    res.status(200).json({
+      products: await Promise.all(products.map((p) => withPricing(p, silverRate))),
       pagination: {
         currentPage: parseInt(page),
         totalPages: Math.ceil(total / limit),
         totalProducts: total,
         hasNext: skip + products.length < total,
-        limit: parseInt(limit)
+        limit: parseInt(limit),
       },
-      filter: filter
+      filter,
     });
   } catch (error) {
     console.error("Get products error:", error);
@@ -114,68 +214,60 @@ exports.getAllProducts = async (req, res) => {
 // Get a single product by ID
 exports.getProductById = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.productId).populate(
-      "category"
-    ); // Populate category details
+    const product = await Product.findById(req.params.productId).populate("category");
 
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    res.status(200).json({ product });  
+    res.status(200).json({ product: await withPricing(product) });
   } catch (error) {
-    res.status(500).json({ message: "Error fetching product", error });
+    res.status(500).json({ message: "Error fetching product", error: error.message });
   }
 };
 
 // Update product details
 exports.updateProduct = async (req, res) => {
   try {
-    const {
-      title,
-      description,
-      imageUrl,
-      category,
-      constantPrice,
-      height,
-      silverPricePerTola,
-      weightInTola,
-      makingCost,
-      weightRange,
-      isCustomizable,
-    } = req.body;
-
-    // Find the product and category
-    const categoryDoc = await Category.findById(category);
-    if (!categoryDoc) {
-      return res.status(400).json({ message: "Category not found" });
-    }
-
-    const product = await Product.findByIdAndUpdate(
-      req.params.productId,
-      {
-        title,
-        description,
-        imageUrl,
-        category,
-        constantPrice,
-        height,
-        silverPricePerTola,
-        weightInTola,
-        makingCost,
-        weightRange,
-        isCustomizable,
-      },
-      { new: true }
-    );
-
+    let product = await Product.findById(req.params.productId);
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    res.status(200).json({ message: "Product updated successfully", product });
+    const categoryId = req.body.category || product.category;
+    const { category, productType, error } = await resolveCategory(categoryId);
+    if (error) return res.status(400).json({ message: error });
+
+    // Products created before the per-category schemas have no productType;
+    // tag them so they load with the right discriminator.
+    if (!product.productType) {
+      await Product.collection.updateOne({ _id: product._id }, { $set: { productType } });
+      product = await Product.findById(product._id);
+    }
+
+    // Each product type has its own schema, so switching e.g. silver -> gold
+    // would leave the document half-valid. Recreate the product instead.
+    if (product.productType && product.productType !== productType) {
+      return res.status(400).json({
+        message: `Cannot move a ${product.productType} product into a ${category.materialType} category. Create a new product instead.`,
+      });
+    }
+
+    const fields = buildProductFields(req.body, productType, category.materialType);
+    product.set({ ...fields, category: category._id });
+
+    if (req.files && req.files.length) {
+      const uploaded = req.files.map((file) => `/uploads/${file.filename}`);
+      product.images = String(req.body.replaceImages) === "true" ? uploaded : [...product.images, ...uploaded];
+    }
+
+    await product.save();
+    await product.populate("category", "name materialType");
+    res.status(200).json({ message: "Product updated successfully", product: await withPricing(product) });
   } catch (error) {
-    res.status(500).json({ message: "Error updating product", error });
+    if (error.name === "ValidationError") return validationResponse(res, error);
+    console.error("Update product error:", error);
+    res.status(500).json({ message: "Error updating product", error: error.message });
   }
 };
 
@@ -190,6 +282,6 @@ exports.deleteProduct = async (req, res) => {
 
     res.status(200).json({ message: "Product deleted successfully" });
   } catch (error) {
-    res.status(500).json({ message: "Error deleting product", error });
+    res.status(500).json({ message: "Error deleting product", error: error.message });
   }
 };
