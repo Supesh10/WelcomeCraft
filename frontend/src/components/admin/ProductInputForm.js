@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Link } from "react-router-dom"
+import { Link, useNavigate, useParams } from "react-router-dom"
 import { CloudUpload, Paperclip, Package, AlertCircle, CheckCircle2 } from "lucide-react"
 import { Button } from "../ui/button"
 import { Switch } from "../ui/switch"
@@ -26,6 +26,7 @@ import { Input } from "../ui/input"
 import { Textarea } from "../ui/textarea"
 import { Label } from "../ui/label"
 import ApiService from "../../services/apiService"
+import { imageUrl } from "./adminUi"
 
 // Option lists mirror backend/src/Config/productTypes.js
 const SILVER_TYPES = [
@@ -81,7 +82,50 @@ const EMPTY_VALUES = {
   baseMetal: "",
   weightInKg: "",
   finish: "",
+  isActive: true,
 }
+
+const str = (v) => (v === undefined || v === null ? "" : String(v))
+
+// Fill the form from an existing product (edit mode)
+function productToValues(p) {
+  const dims = p.dimensions || {}
+  const opts = p.customOptions || {}
+  return {
+    ...EMPTY_VALUES,
+    category: p.category?._id || p.category || "",
+    materialType: p.category?.materialType || "",
+    title: p.title || "",
+    description: p.description || "",
+    height: str(dims.height),
+    width: str(dims.width),
+    length: str(dims.length),
+    unit: dims.unit || opts.sizeRange?.unit || "inch",
+    silverType: p.silverType || "",
+    makingCost: str(p.makingCost),
+    weightInTola: str(p.weightInTola),
+    stockQuantity: str(p.stockQuantity),
+    weightMin: str(p.weightRange?.min),
+    weightMax: str(p.weightRange?.max),
+    minHeight: str(opts.sizeRange?.minHeight),
+    maxHeight: str(opts.sizeRange?.maxHeight),
+    designOptions: (opts.designOptions || []).join(", "),
+    allowCustomDesign: opts.allowCustomDesign !== false,
+    minDays: str(opts.productionTime?.minDays),
+    maxDays: str(opts.productionTime?.maxDays),
+    constantPrice: str(p.constantPrice),
+    goldFinish: p.goldFinish || "",
+    platingMethod: p.platingMethod || "",
+    baseMetal: p.baseMetal || "",
+    weightInKg: str(p.weightInKg),
+    finish: p.finish || "",
+    isActive: p.isActive !== false,
+  }
+}
+
+// Which categories a product may move to: the backend keeps each product
+// type in its own schema, so only categories of the same type qualify.
+const PRODUCT_TYPE_BY_MATERIAL = { silver: "silver", gold: "gold", copper: "metal", bronze: "metal" }
 
 const isBlank = (v) => v === undefined || v === null || String(v).trim() === ""
 const num = (v) => (isBlank(v) ? undefined : Number(v))
@@ -153,7 +197,7 @@ const productSchema = z
     })
 
 // Turn form values into the multipart body POST /api/products expects
-function toFormData(values, materialType, files) {
+function toFormData(values, materialType, files, { replaceImages } = {}) {
   const fd = new FormData()
   const add = (key, value) => {
     if (!isBlank(value)) fd.append(key, value)
@@ -166,6 +210,8 @@ function toFormData(values, materialType, files) {
   add("width", values.width)
   add("length", values.length)
   add("unit", values.unit)
+  fd.append("isActive", String(values.isActive !== false))
+  if (replaceImages) fd.append("replaceImages", "true")
 
   if (materialType === "silver") {
     add("silverType", values.silverType)
@@ -274,6 +320,12 @@ function Section({ title, children }) {
 // ---------------------------------------------------------------------------
 
 export default function ProductInputForm() {
+  const { productId } = useParams()
+  const isEdit = Boolean(productId)
+  const navigate = useNavigate()
+  const [product, setProduct] = useState(null)
+  const [loadError, setLoadError] = useState("")
+  const [replaceImages, setReplaceImages] = useState(false)
   const [files, setFiles] = useState([])
   const [categories, setCategories] = useState([])
   const [categoriesError, setCategoriesError] = useState("")
@@ -297,10 +349,31 @@ export default function ProductInputForm() {
       .finally(() => setLoadingCategories(false))
   }, [])
 
+  useEffect(() => {
+    if (!isEdit) return
+    ApiService.getProductById(productId)
+      .then((data) => {
+        setProduct(data.product)
+        form.reset(productToValues(data.product))
+      })
+      .catch((err) => setLoadError(err.message || "Failed to load product"))
+  }, [isEdit, productId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // In edit mode only offer categories with the same product type
+  const productType = isEdit && product ? product.productType || PRODUCT_TYPE_BY_MATERIAL[product.category?.materialType] : null
+  const categoryOptions = productType
+    ? categories.filter((c) => PRODUCT_TYPE_BY_MATERIAL[c.materialType] === productType)
+    : categories
+
   async function onSubmit(values) {
     setSubmitError("")
     setCreated(null)
     try {
+      if (isEdit) {
+        await ApiService.updateProduct(productId, toFormData(values, materialType, files, { replaceImages }))
+        navigate("/admin/products", { replace: true })
+        return
+      }
       const result = await ApiService.createProduct(toFormData(values, materialType, files))
       setCreated(result.product)
       // Keep the category selected so similar products are quick to add
@@ -309,8 +382,24 @@ export default function ProductInputForm() {
       window.scrollTo({ top: 0, behavior: "smooth" })
     } catch (err) {
       const details = err.details ? Object.values(err.details).join(" ") : ""
-      setSubmitError(`${err.message || "Failed to create product"}${details ? `: ${details}` : ""}`)
+      setSubmitError(`${err.message || "Failed to save product"}${details ? `: ${details}` : ""}`)
+      window.scrollTo({ top: 0, behavior: "smooth" })
     }
+  }
+
+  if (isEdit && !product) {
+    return (
+      <div className="py-24 text-center text-gray-600">
+        {loadError ? (
+          <>
+            <p className="text-red-600 mb-4">{loadError}</p>
+            <Link to="/admin/products" className="text-blue-600 underline">Back to products</Link>
+          </>
+        ) : (
+          "Loading product..."
+        )}
+      </div>
+    )
   }
 
   const { control } = form
@@ -325,8 +414,12 @@ export default function ProductInputForm() {
               <Package className="h-8 w-8 text-blue-600" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Add New Product</h1>
-          <p className="text-gray-600">The fields change with the material of the category you pick.</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{isEdit ? "Edit Product" : "Add New Product"}</h1>
+          <p className="text-gray-600">
+            {isEdit
+              ? "Categories are limited to the same material, because each material stores different fields."
+              : "The fields change with the material of the category you pick."}
+          </p>
         </div>
 
         {created && (
@@ -369,7 +462,7 @@ export default function ProductInputForm() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {categories.map((cat) => (
+                        {categoryOptions.map((cat) => (
                           <SelectItem key={cat._id} value={cat._id} disabled={!cat.materialType}>
                             {cat.name}
                             {cat.materialType ? ` (${cat.materialType})` : " (no material set)"}
@@ -407,7 +500,20 @@ export default function ProductInputForm() {
                     />
 
                     <div>
-                      <Label className="text-sm font-medium">Images</Label>
+                      <Label className="text-sm font-medium">{isEdit ? "Add images" : "Images"}</Label>
+                      {isEdit && product.images?.length > 0 && (
+                        <div className="mt-2 mb-3">
+                          <div className="flex flex-wrap gap-2">
+                            {product.images.map((img) => (
+                              <img key={img} src={imageUrl(img)} alt="" className="h-20 w-20 rounded-md object-cover bg-gray-100" />
+                            ))}
+                          </div>
+                          <label className="mt-2 flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" checked={replaceImages} onChange={(e) => setReplaceImages(e.target.checked)} />
+                            Replace these with the newly uploaded images (otherwise new images are added)
+                          </label>
+                        </div>
+                      )}
                       <div className="mt-2 relative rounded-lg outline-dashed outline-1 outline-slate-400">
                         <div className="flex items-center justify-center flex-col p-8 w-full pointer-events-none">
                           <CloudUpload className="text-gray-500 w-10 h-10" />
@@ -538,9 +644,34 @@ export default function ProductInputForm() {
                     </Section>
                   )}
 
-                  <Button type="submit" className="w-full" disabled={isSubmitting}>
-                    {isSubmitting ? "Creating product..." : "Add product"}
-                  </Button>
+                  <FormField
+                    control={control}
+                    name="isActive"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-start gap-3 rounded-md border p-4">
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} className="mt-1" />
+                          </FormControl>
+                          <div className="grid gap-1">
+                            <Label className="font-medium">Visible in shop</Label>
+                            <p className="text-muted-foreground text-xs">Turn off to hide the product without deleting it.</p>
+                          </div>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="flex gap-3">
+                    {isEdit && (
+                      <Button type="button" variant="outline" className="flex-1" onClick={() => navigate("/admin/products")}>
+                        Cancel
+                      </Button>
+                    )}
+                    <Button type="submit" className="flex-1" disabled={isSubmitting}>
+                      {isSubmitting ? "Saving..." : isEdit ? "Save changes" : "Add product"}
+                    </Button>
+                  </div>
                 </>
               )}
             </form>

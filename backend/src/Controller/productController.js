@@ -150,6 +150,7 @@ exports.getAllProducts = async (req, res) => {
       silverType,
       goldFinish,
       platingMethod,
+      search,
       limit = 50,
       page = 1,
     } = req.query;
@@ -181,6 +182,9 @@ exports.getAllProducts = async (req, res) => {
     if (silverType) filter.silverType = silverType;
     if (goldFinish) filter.goldFinish = goldFinish;
     if (platingMethod) filter.platingMethod = platingMethod;
+    if (search) {
+      filter.title = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    }
 
     const skip = (page - 1) * limit;
 

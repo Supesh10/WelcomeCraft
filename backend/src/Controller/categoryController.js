@@ -136,6 +136,9 @@ exports.updateCategory = async (req, res) => {
 
     res.status(200).json({ message: "Category updated", category });
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: "Category with this name already exists" });
+    }
     res.status(500).json({ message: "Error updating category", error: error.message });
   }
 };

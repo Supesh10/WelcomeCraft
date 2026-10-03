@@ -57,6 +57,8 @@ class ApiService {
     if (filters.category) params.append("category", filters.category);
     if (filters.categoryName)
       params.append("categoryName", filters.categoryName);
+    if (filters.materialType) params.append("materialType", filters.materialType);
+    if (filters.search) params.append("search", filters.search);
     if (filters.limit) params.append("limit", filters.limit);
     if (filters.page) params.append("page", filters.page);
 
@@ -92,10 +94,14 @@ class ApiService {
     });
   }
 
+  // Accepts FormData (with images) or a plain object
   static async updateProduct(productId, productData) {
     return this.makeRequest(`/products/${productId}`, {
       method: "PUT",
-      body: JSON.stringify(productData),
+      body:
+        productData instanceof FormData
+          ? productData
+          : JSON.stringify(productData),
     });
   }
 
@@ -123,6 +129,19 @@ class ApiService {
     return this.makeRequest("/categories", {
       method: "POST",
       body: JSON.stringify(categoryData),
+    });
+  }
+
+  static async updateCategory(categoryId, categoryData) {
+    return this.makeRequest(`/categories/${categoryId}`, {
+      method: "PUT",
+      body: JSON.stringify(categoryData),
+    });
+  }
+
+  static async deleteCategory(categoryId) {
+    return this.makeRequest(`/categories/${categoryId}`, {
+      method: "DELETE",
     });
   }
 
@@ -177,8 +196,27 @@ class ApiService {
     });
   }
 
-  static async getAllOrders() {
-    return this.makeRequest("/orders");
+  static async getAllOrders(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.status) params.append("status", filters.status);
+    if (filters.search) params.append("search", filters.search);
+    if (filters.limit) params.append("limit", filters.limit);
+    if (filters.page) params.append("page", filters.page);
+    const queryString = params.toString();
+    return this.makeRequest(`/orders${queryString ? "?" + queryString : ""}`);
+  }
+
+  static async updateOrder(orderId, orderData) {
+    return this.makeRequest(`/orders/${orderId}`, {
+      method: "PUT",
+      body: JSON.stringify(orderData),
+    });
+  }
+
+  static async deleteOrder(orderId) {
+    return this.makeRequest(`/orders/${orderId}`, {
+      method: "DELETE",
+    });
   }
 
   static async getOrderById(orderId) {

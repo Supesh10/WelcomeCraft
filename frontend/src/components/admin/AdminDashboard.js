@@ -513,6 +513,12 @@ const AdminDashboard = () => {
               Add Category
             </button>
             <button
+              onClick={() => navigate('/admin/orders/new')}
+              className="btn btn-secondary"
+            >
+              Create Order
+            </button>
+            <button
               onClick={() => navigate('/admin/customers')}
               className="btn btn-secondary"
             >

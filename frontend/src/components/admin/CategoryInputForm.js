@@ -1,8 +1,8 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Link } from "react-router-dom"
+import { Link, useNavigate, useParams } from "react-router-dom"
 import { FolderPlus, AlertCircle, CheckCircle2 } from "lucide-react"
 import { Button } from "../ui/button"
 import {
@@ -43,8 +43,14 @@ const categorySchema = z.object({
 const EMPTY = { name: "", materialType: "", description: "", imageUrl: "" }
 
 export default function CategoryInputForm() {
+  const { categoryId } = useParams()
+  const isEdit = Boolean(categoryId)
+  const navigate = useNavigate()
   const [submitError, setSubmitError] = useState("")
   const [created, setCreated] = useState(null)
+  const [loaded, setLoaded] = useState(!isEdit)
+  const [loadError, setLoadError] = useState("")
+  const [productCount, setProductCount] = useState(0)
 
   const form = useForm({
     resolver: zodResolver(categorySchema),
@@ -53,21 +59,65 @@ export default function CategoryInputForm() {
   const materialType = form.watch("materialType")
   const hint = MATERIAL_TYPES.find((m) => m.value === materialType)?.hint
 
+  useEffect(() => {
+    if (!isEdit) return
+    Promise.all([
+      ApiService.getCategoryById(categoryId),
+      ApiService.getProductsByCategory(categoryId, { limit: 1 }),
+    ])
+      .then(([category, products]) => {
+        form.reset({
+          name: category.name || "",
+          materialType: category.materialType || "",
+          description: category.description || "",
+          imageUrl: category.imageUrl || "",
+        })
+        setProductCount(products.pagination?.totalProducts || 0)
+        setLoaded(true)
+      })
+      .catch((err) => setLoadError(err.message || "Failed to load category"))
+  }, [isEdit, categoryId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Products are stored with their material's schema, so the backend only
+  // lets the material change while the category is empty.
+  const materialLocked = isEdit && productCount > 0
+
   async function onSubmit(values) {
     setSubmitError("")
     setCreated(null)
     try {
-      const result = await ApiService.createCategory({
+      const body = {
         name: values.name.trim(),
         materialType: values.materialType,
-        description: values.description?.trim() || undefined,
-        imageUrl: values.imageUrl?.trim() || undefined,
-      })
+        description: values.description?.trim() || (isEdit ? "" : undefined),
+        imageUrl: values.imageUrl?.trim() || (isEdit ? "" : undefined),
+      }
+      if (isEdit) {
+        await ApiService.updateCategory(categoryId, body)
+        navigate("/admin/categories", { replace: true })
+        return
+      }
+      const result = await ApiService.createCategory(body)
       setCreated(result.category)
       form.reset(EMPTY)
     } catch (err) {
-      setSubmitError(err.message || "Failed to create category")
+      setSubmitError(err.message || "Failed to save category")
     }
+  }
+
+  if (!loaded) {
+    return (
+      <div className="py-24 text-center text-gray-600">
+        {loadError ? (
+          <>
+            <p className="text-red-600 mb-4">{loadError}</p>
+            <Link to="/admin/categories" className="text-blue-600 underline">Back to categories</Link>
+          </>
+        ) : (
+          "Loading category..."
+        )}
+      </div>
+    )
   }
 
   const { control } = form
@@ -81,7 +131,7 @@ export default function CategoryInputForm() {
               <FolderPlus className="h-8 w-8 text-green-600" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Add Category</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{isEdit ? "Edit Category" : "Add Category"}</h1>
           <p className="text-gray-600">The material decides which fields its products have.</p>
         </div>
 
@@ -125,7 +175,7 @@ export default function CategoryInputForm() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Material</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={materialLocked}>
                       <FormControl>
                         <SelectTrigger className="w-full">
                           <SelectValue placeholder="Select a material" />
@@ -139,7 +189,13 @@ export default function CategoryInputForm() {
                         ))}
                       </SelectContent>
                     </Select>
-                    {hint && <FormDescription>{hint}</FormDescription>}
+                    {materialLocked ? (
+                      <FormDescription>
+                        Locked because this category has {productCount} product{productCount === 1 ? "" : "s"}. Move or delete them to change the material.
+                      </FormDescription>
+                    ) : (
+                      hint && <FormDescription>{hint}</FormDescription>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -173,9 +229,16 @@ export default function CategoryInputForm() {
                 )}
               />
 
-              <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? "Creating category..." : "Add category"}
-              </Button>
+              <div className="flex gap-3">
+                {isEdit && (
+                  <Button type="button" variant="outline" className="flex-1" onClick={() => navigate("/admin/categories")}>
+                    Cancel
+                  </Button>
+                )}
+                <Button type="submit" className="flex-1" disabled={form.formState.isSubmitting}>
+                  {form.formState.isSubmitting ? "Saving..." : isEdit ? "Save changes" : "Add category"}
+                </Button>
+              </div>
             </form>
           </Form>
         </div>

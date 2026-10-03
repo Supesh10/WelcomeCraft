@@ -16,6 +16,10 @@ import ProductInputForm from './components/admin/ProductInputForm';
 import CategoryInputForm from './components/admin/CategoryInputForm';
 import RequireAdmin from './components/admin/RequireAdmin';
 import AdminComingSoon from './components/admin/AdminComingSoon';
+import ProductsList from './components/admin/ProductsList';
+import CategoriesList from './components/admin/CategoriesList';
+import OrdersList from './components/admin/OrdersList';
+import OrderForm from './components/admin/OrderForm';
 
 function AppWrapper() {
   const location = useLocation();
@@ -35,8 +39,15 @@ function AppWrapper() {
         <Route path="/admin" element={<RequireAdmin />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<AdminDashboard />} />
+          <Route path="products" element={<ProductsList />} />
           <Route path="products/new" element={<ProductInputForm />} />
+          <Route path="products/:productId/edit" element={<ProductInputForm key="edit" />} />
+          <Route path="categories" element={<CategoriesList />} />
           <Route path="categories/new" element={<CategoryInputForm />} />
+          <Route path="categories/:categoryId/edit" element={<CategoryInputForm key="edit" />} />
+          <Route path="orders" element={<OrdersList />} />
+          <Route path="orders/new" element={<OrderForm />} />
+          <Route path="orders/:orderId/edit" element={<OrderForm key="edit" />} />
           <Route path="createprod" element={<Navigate to="/admin/products/new" replace />} />
           <Route path="*" element={<AdminComingSoon />} />
         </Route>

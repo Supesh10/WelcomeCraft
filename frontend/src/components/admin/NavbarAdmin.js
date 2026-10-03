@@ -1,8 +1,6 @@
-import { useId } from "react"
 import { Link, NavLink, useNavigate } from "react-router-dom"
-import { SearchIcon, User, Menu, LogOut } from "lucide-react"
+import { User, Menu, LogOut } from "lucide-react"
 import { Button } from "../ui/button"
-import { Input } from "../ui/input"
 import {
   NavigationMenu,
   NavigationMenuItem,
@@ -80,8 +78,8 @@ function UserMenu() {
 // Navigation links used in both desktop and mobile menus
 const navigationLinks = [
   { to: "/admin/dashboard", label: "Dashboard" },
-  { to: "/admin/products/new", label: "Add Product" },
-  { to: "/admin/categories/new", label: "Add Category" },
+  { to: "/admin/products", label: "Products" },
+  { to: "/admin/categories", label: "Categories" },
   { to: "/admin/orders", label: "Orders" },
 ]
 
@@ -89,8 +87,6 @@ const linkClass = (base, active, inactive) => ({ isActive }) =>
   `${base} ${isActive ? active : inactive}`
 
 export default function NavbarAdmin() {
-  const id = useId()
-
   return (
     <header className="border-b px-4 md:px-6 bg-gradient-to-r from-white via-blue-100 to-white">
       <div className="flex h-16 items-center justify-between gap-4">
@@ -136,26 +132,6 @@ export default function NavbarAdmin() {
           </div>
         </div>
 
-        {/* Middle area - Search */}
-        <div className="grow">
-          <div className="relative mx-auto w-full max-w-xs">
-            <Input
-              id={id}
-              className="peer h-9 ps-10 pe-12 bg-gray-50 border-gray-200 focus:bg-white"
-              placeholder="Search products, orders..."
-              type="search"
-            />
-            <div className="text-muted-foreground/80 pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center ps-3 peer-disabled:opacity-50">
-              <SearchIcon size={16} />
-            </div>
-            <div className="text-muted-foreground pointer-events-none absolute inset-y-0 end-0 flex items-center justify-center pe-3">
-              <kbd className="text-muted-foreground/70 inline-flex h-5 max-h-full items-center rounded border border-gray-300 px-1.5 font-[inherit] text-[0.625rem] font-medium bg-gray-50">
-                ⌘K
-              </kbd>
-            </div>
-          </div>
-        </div>
-
         {/* Right side */}
         <div className="flex flex-1 items-center justify-end gap-2">
           {/* User menu */}
@@ -171,7 +147,6 @@ export default function NavbarAdmin() {
               <NavigationMenuItem key={index}>
                 <NavLink
                     to={link.to}
-                    end
                     className={linkClass(
                       "px-3 py-2 rounded-md text-sm font-medium transition-colors",
                       "bg-orange-100 text-orange-700",
