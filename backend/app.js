@@ -24,7 +24,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded files
-app.use("/uploads", express.static(__dirname + "/uploads"));
+app.use("/uploads", express.static(require("./src/Middleware/uploadMiddleware").UPLOAD_DIR));
 
 // API Routes
 app.use("/api", product);

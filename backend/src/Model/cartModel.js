@@ -104,29 +104,33 @@ cartSchema.methods.recalculateTotals = function() {
   return this;
 };
 
-// Static method to find or create cart by session
+// Static method to find or create cart by session.
+// sessionId is unique, so there is exactly one cart per session; a cart
+// left in another status is reopened rather than creating a duplicate.
 cartSchema.statics.findOrCreateBySession = async function(sessionId) {
-  let cart = await this.findOne({ sessionId, status: 'active' })
-    .populate({
-      path: 'items.product',
-      populate: {
-        path: 'category',
-        select: 'name'
-      }
-    });
-    
+  const populate = {
+    path: 'items.product',
+    populate: {
+      path: 'category',
+      select: 'name materialType'
+    }
+  };
+
+  let cart = await this.findOne({ sessionId }).populate(populate);
+
   if (!cart) {
-    cart = await this.create({ sessionId });
-    // Populate after creation
-    cart = await this.findById(cart._id).populate({
-      path: 'items.product',
-      populate: {
-        path: 'category',
-        select: 'name'
-      }
-    });
+    try {
+      await this.create({ sessionId });
+    } catch (error) {
+      // Two requests created it at the same time; use the existing one
+      if (error.code !== 11000) throw error;
+    }
+    cart = await this.findOne({ sessionId }).populate(populate);
+  } else if (cart.status !== 'active') {
+    cart.status = 'active';
+    await cart.save();
   }
-  
+
   return cart;
 };
 

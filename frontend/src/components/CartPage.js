@@ -1,19 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import {
-  ShoppingCart,
-  Plus,
-  Minus,
-  Trash2,
-  Edit,
-  ChevronRight,
-  Package,
-  CreditCard,
-  ArrowLeft,
-  RefreshCw,
-  MessageCircle
-} from 'lucide-react';
-import ApiService from '../services/apiService';
+import React, { useState, useEffect, useCallback } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { ShoppingCart, Plus, Minus, Trash2, Edit, Package, CreditCard, ArrowLeft, Info } from "lucide-react";
+import ApiService from "../services/apiService";
+import { fallbackToPlaceholder, formatRs, isSilver, productImage, variantLabel } from "../lib/productDisplay";
+
+// Lines describing a custom silver specification
+export function specSummary(spec) {
+  if (!spec || spec.preferredWeight == null) return [];
+  const size = spec.size || {};
+  const dims = [size.height, size.width, size.length].filter(Boolean).join(" × ");
+  return [
+    `Weight: ${spec.preferredWeight} tola`,
+    dims && `Size: ${dims} ${size.unit || "inch"}`,
+    spec.design && `Design: ${spec.design}`,
+    spec.designNotes && `Notes: ${spec.designNotes}`,
+    spec.requiredBy && `Needed by: ${new Date(spec.requiredBy).toLocaleDateString()}`,
+    spec.estimatedCompletion?.latest && `Estimated ready by: ${new Date(spec.estimatedCompletion.latest).toLocaleDateString()}`,
+  ].filter(Boolean);
+}
 
 const CartPage = () => {
   const navigate = useNavigate();
@@ -21,157 +25,85 @@ const CartPage = () => {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState({});
   const [error, setError] = useState(null);
-  const [silverPrice, setSilverPrice] = useState(null);
-  const [goldPrice, setGoldPrice] = useState(null);
+  const [notices, setNotices] = useState([]);
   const [editingItem, setEditingItem] = useState(null);
-  const [customizationText, setCustomizationText] = useState('');
+  const [noteText, setNoteText] = useState("");
 
   const sessionId = ApiService.getSessionId();
 
-  // Fetch cart data
-  const fetchCart = async () => {
+  const applyResponse = (res) => {
+    setCart(res.cart);
+    const msgs = [];
+    if (res.priceChanges?.length) msgs.push("Some prices were updated to today's silver rate.");
+    if (res.removedItems?.length) msgs.push(`Removed because no longer available: ${res.removedItems.join(", ")}.`);
+    if (msgs.length) setNotices(msgs);
+    window.dispatchEvent(new Event("storage")); // Update navbar cart count
+  };
+
+  const fetchCart = useCallback(async () => {
     try {
-      setLoading(true);
       setError(null);
-
-      const [cartResponse, silverPriceResponse, goldPriceResponse] = await Promise.allSettled([
-        ApiService.getCart(sessionId),
-        ApiService.getTodaysSilverPrice(),
-        ApiService.getTodaysGoldPrice()
-      ]);
-
-      // Handle cart
-      if (cartResponse.status === 'fulfilled') {
-        setCart(cartResponse.value);
-      } else {
-        setError('Failed to load cart');
-      }
-
-      // Handle prices
-      if (silverPriceResponse.status === 'fulfilled') {
-        setSilverPrice(silverPriceResponse.value);
-      }
-      if (goldPriceResponse.status === 'fulfilled') {
-        setGoldPrice(goldPriceResponse.value);
-      }
-
+      applyResponse(await ApiService.getCart(sessionId));
     } catch (err) {
-      console.error('Failed to fetch cart:', err);
-      setError('Failed to load cart. Please try again.');
+      setError("Failed to load your cart. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [sessionId]);
 
-  // Update item quantity
-  const updateQuantity = async (itemId, newQuantity) => {
-    if (newQuantity < 1) return;
+  useEffect(() => {
+    fetchCart();
+  }, [fetchCart]);
 
+  const runItemUpdate = async (itemId, request) => {
     try {
-      setUpdating(prev => ({ ...prev, [itemId]: true }));
-      
-      await ApiService.updateCartItem(sessionId, itemId, newQuantity);
-      await fetchCart(); // Refresh cart
-      
-      // Trigger storage event to update navbar
-      window.dispatchEvent(new Event('storage'));
-      
+      setUpdating((u) => ({ ...u, [itemId]: true }));
+      setError(null);
+      const res = await request();
+      if (res?.cart) {
+        setCart(res.cart);
+        window.dispatchEvent(new Event("storage"));
+      } else {
+        await fetchCart();
+      }
     } catch (err) {
-      console.error('Failed to update quantity:', err);
-      setError('Failed to update quantity. Please try again.');
+      setError(err.message || "Failed to update your cart. Please try again.");
     } finally {
-      setUpdating(prev => ({ ...prev, [itemId]: false }));
+      setUpdating((u) => ({ ...u, [itemId]: false }));
     }
   };
 
-  // Remove item from cart
-  const removeItem = async (itemId) => {
-    try {
-      setUpdating(prev => ({ ...prev, [itemId]: true }));
-      
-      await ApiService.removeFromCart(sessionId, itemId);
-      await fetchCart(); // Refresh cart
-      
-      // Trigger storage event to update navbar
-      window.dispatchEvent(new Event('storage'));
-      
-    } catch (err) {
-      console.error('Failed to remove item:', err);
-      setError('Failed to remove item. Please try again.');
-    } finally {
-      setUpdating(prev => ({ ...prev, [itemId]: false }));
-    }
+  const updateQuantity = (item, quantity) => {
+    if (quantity < 1) return;
+    runItemUpdate(item._id, () => ApiService.updateCartItem(sessionId, item._id, { quantity }));
   };
 
-  // Update customization
-  const updateCustomization = async (itemId, customization) => {
-    try {
-      const item = cart.items.find(i => i._id === itemId);
-      await ApiService.updateCartItem(sessionId, itemId, item.quantity, customization);
-      await fetchCart(); // Refresh cart
+  const removeItem = (item) => runItemUpdate(item._id, () => ApiService.removeFromCart(sessionId, item._id));
+
+  const saveNote = (item) =>
+    runItemUpdate(item._id, () => ApiService.updateCartItem(sessionId, item._id, { customization: noteText.trim() })).then(() => {
       setEditingItem(null);
-      setCustomizationText('');
-    } catch (err) {
-      console.error('Failed to update customization:', err);
-      setError('Failed to update customization. Please try again.');
-    }
-  };
+      setNoteText("");
+    });
 
-  // Clear entire cart
   const clearCart = async () => {
-    if (!window.confirm('Are you sure you want to clear your cart?')) return;
-    
+    if (!window.confirm("Remove all items from your cart?")) return;
     try {
       setLoading(true);
       await ApiService.clearCart(sessionId);
       await fetchCart();
-      
-      // Trigger storage event to update navbar
-      window.dispatchEvent(new Event('storage'));
-      
     } catch (err) {
-      console.error('Failed to clear cart:', err);
-      setError('Failed to clear cart. Please try again.');
+      setError("Failed to clear the cart. Please try again.");
+      setLoading(false);
     }
   };
-
-  // Calculate updated price for silver items
-  const calculateCurrentPrice = (item) => {
-    const product = item.product;
-    
-    if (product.constantPrice) {
-      return product.constantPrice;
-    }
-
-    if (silverPrice && product.weightInTola && product.makingCost) {
-      return (silverPrice.pricePerTola * product.weightInTola + product.makingCost);
-    }
-
-    return item.priceSnapshot; // Fallback to original price
-  };
-
-  // Check if price has changed
-  const hasPriceChanged = (item) => {
-    const currentPrice = calculateCurrentPrice(item);
-    return Math.abs(currentPrice - item.priceSnapshot) > 0.01;
-  };
-
-  // Start editing customization
-  const startEditingCustomization = (item) => {
-    setEditingItem(item._id);
-    setCustomizationText(item.customization || '');
-  };
-
-  useEffect(() => {
-    fetchCart();
-  }, []);
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="spinner mb-4"></div>
-          <p style={{ color: 'var(--stone-gray)' }}>Loading your cart...</p>
+          <p style={{ color: "var(--stone-gray)" }}>Loading your cart...</p>
         </div>
       </div>
     );
@@ -179,14 +111,11 @@ const CartPage = () => {
 
   if (error && !cart) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center px-4">
         <div className="text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
             <ShoppingCart size={24} className="text-red-600" />
           </div>
-          <h2 className="text-xl font-semibold mb-2" style={{ color: 'var(--dark-gray)' }}>
-            Cart Error
-          </h2>
           <p className="text-red-600 mb-4">{error}</p>
           <button onClick={fetchCart} className="btn btn-primary">
             Try Again
@@ -196,226 +125,193 @@ const CartPage = () => {
     );
   }
 
-  if (!cart || !cart.items || cart.items.length === 0) {
+  const items = (cart?.items || []).filter((i) => i.product);
+
+  if (items.length === 0) {
     return (
-      <div className="min-h-screen" style={{ backgroundColor: 'var(--cream)' }}>
+      <div className="min-h-screen" style={{ backgroundColor: "var(--cream)" }}>
         <div className="container mx-auto px-6 py-12">
           <div className="text-center max-w-md mx-auto">
+            {notices.map((n) => (
+              <p key={n} className="mb-4 text-sm text-orange-700">
+                {n}
+              </p>
+            ))}
             <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
-              <ShoppingCart size={32} style={{ color: 'var(--stone-gray)' }} />
+              <ShoppingCart size={32} style={{ color: "var(--stone-gray)" }} />
             </div>
-            <h1 className="text-3xl font-display font-bold mb-4" style={{ color: 'var(--dark-gray)' }}>
+            <h1 className="text-3xl font-display font-bold mb-4" style={{ color: "var(--dark-gray)" }}>
               Your Cart is Empty
             </h1>
-            <p className="mb-8" style={{ color: 'var(--stone-gray)' }}>
-              Looks like you haven't added any items to your cart yet. Explore our collection of beautiful Buddhist handicrafts.
+            <p className="mb-8" style={{ color: "var(--stone-gray)" }}>
+              Explore our collection of handcrafted Buddhist statues and ornaments.
             </p>
-            <div className="space-y-4">
-              <Link to="/products" className="btn btn-primary block">
-                <Package size={20} className="mr-2" />
-                Browse Products
-              </Link>
-              <Link to="/" className="btn btn-secondary block">
-                Back to Home
-              </Link>
-            </div>
+            <Link to="/products" className="btn btn-primary">
+              <Package size={20} className="mr-2" />
+              Browse Products
+            </Link>
           </div>
         </div>
       </div>
     );
   }
 
+  const hasSilver = items.some((i) => isSilver(i.product));
+
   return (
-    <div className="min-h-screen" style={{ backgroundColor: 'var(--cream)' }}>
-      <div className="container mx-auto px-6 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+    <div className="min-h-screen" style={{ backgroundColor: "var(--cream)" }}>
+      <div className="container mx-auto px-4 sm:px-6 py-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate(-1)}
-              className="btn btn-secondary btn-sm"
-            >
+            <button onClick={() => navigate(-1)} className="btn btn-secondary btn-sm">
               <ArrowLeft size={16} />
               Back
             </button>
             <div>
-              <h1 className="text-3xl font-display font-bold" style={{ color: 'var(--dark-gray)' }}>
+              <h1 className="text-3xl font-display font-bold" style={{ color: "var(--dark-gray)" }}>
                 Shopping Cart
               </h1>
-              <p className="text-sm" style={{ color: 'var(--stone-gray)' }}>
-                {cart.totalItems} {cart.totalItems === 1 ? 'item' : 'items'} in your cart
+              <p className="text-sm" style={{ color: "var(--stone-gray)" }}>
+                {cart.totalItems} {cart.totalItems === 1 ? "item" : "items"}
               </p>
             </div>
           </div>
-          
-          {cart.items.length > 0 && (
-            <div className="flex gap-2">
-              <button
-                onClick={fetchCart}
-                className="btn btn-secondary btn-sm"
-                disabled={loading}
-              >
-                <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-                Refresh
-              </button>
-              <button
-                onClick={clearCart}
-                className="btn btn-outline btn-sm text-red-600 border-red-600 hover:bg-red-600"
-              >
-                <Trash2 size={16} />
-                Clear Cart
-              </button>
-            </div>
-          )}
+          <button onClick={clearCart} className="btn btn-outline btn-sm text-red-600 border-red-600 hover:bg-red-600 self-start sm:self-auto">
+            <Trash2 size={16} />
+            Clear Cart
+          </button>
         </div>
 
+        {notices.length > 0 && (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6 flex gap-3">
+            <Info size={18} className="text-orange-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 text-sm text-orange-800">
+              {notices.map((n) => (
+                <p key={n}>{n}</p>
+              ))}
+            </div>
+            <button onClick={() => setNotices([])} className="text-xs underline text-orange-700">
+              Dismiss
+            </button>
+          </div>
+        )}
+
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <p className="text-red-600">{error}</p>
-            <button 
-              onClick={() => setError(null)} 
-              className="text-red-500 hover:text-red-700 text-sm mt-2"
-            >
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex justify-between gap-3">
+            <p className="text-red-600 text-sm">{error}</p>
+            <button onClick={() => setError(null)} className="text-red-500 text-xs underline">
               Dismiss
             </button>
           </div>
         )}
 
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Cart Items */}
           <div className="lg:col-span-2 space-y-4">
-            {cart.items.map((item) => {
-              const currentPrice = calculateCurrentPrice(item);
-              const priceChanged = hasPriceChanged(item);
-              
+            {items.map((item) => {
+              const p = item.product;
+              const busy = updating[item._id];
+              const specLines = specSummary(item.customSpecification);
               return (
-                <div key={item._id} className="card">
+                <div key={item._id} className={`card ${busy ? "opacity-60" : ""}`}>
                   <div className="card-body">
-                    <div className="flex flex-col md:flex-row gap-4">
-                      {/* Product Image */}
-                      <div className="w-full md:w-32 h-32 flex-shrink-0">
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      <Link to={`/product/${p._id}`} className="w-full sm:w-32 h-40 sm:h-32 flex-shrink-0">
                         <img
-                          src={item.product.imageUrl || '/api/placeholder/300/300'}
-                          alt={item.product.title}
+                          src={productImage(p)}
+                          alt={p.title}
+                          onError={fallbackToPlaceholder}
                           className="w-full h-full object-cover rounded"
                         />
-                      </div>
+                      </Link>
 
-                      {/* Product Details */}
-                      <div className="flex-1 space-y-3">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h3 className="font-semibold text-lg" style={{ color: 'var(--dark-gray)' }}>
-                              {item.product.title}
-                            </h3>
-                            <p className="text-sm" style={{ color: 'var(--stone-gray)' }}>
-                              {item.product.category?.name}
+                      <div className="flex-1 space-y-3 min-w-0">
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="min-w-0">
+                            <Link to={`/product/${p._id}`} className="font-semibold text-lg hover:underline" style={{ color: "var(--dark-gray)" }}>
+                              {p.title}
+                            </Link>
+                            <p className="text-sm" style={{ color: "var(--stone-gray)" }}>
+                              {[p.category?.name, variantLabel(p)].filter(Boolean).join(" · ")}
                             </p>
                           </div>
                           <button
-                            onClick={() => removeItem(item._id)}
-                            disabled={updating[item._id]}
+                            onClick={() => removeItem(item)}
+                            disabled={busy}
+                            aria-label={`Remove ${p.title}`}
                             className="btn btn-ghost btn-sm text-red-600 hover:bg-red-50"
                           >
                             <Trash2 size={16} />
                           </button>
                         </div>
 
-                        {/* Customization */}
-                        {item.product.isCustomizable && (
-                          <div>
-                            {editingItem === item._id ? (
-                              <div className="space-y-2">
-                                <textarea
-                                  value={customizationText}
-                                  onChange={(e) => setCustomizationText(e.target.value)}
-                                  placeholder="Add your customization requirements..."
-                                  className="input-field w-full h-20 resize-none"
-                                />
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => updateCustomization(item._id, customizationText)}
-                                    className="btn btn-primary btn-sm"
-                                  >
-                                    Save
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      setEditingItem(null);
-                                      setCustomizationText('');
-                                    }}
-                                    className="btn btn-secondary btn-sm"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="bg-gray-50 p-3 rounded">
-                                <div className="flex items-start justify-between">
-                                  <div>
-                                    <p className="text-xs text-gray-500 uppercase tracking-wide">
-                                      Customization
-                                    </p>
-                                    <p className="text-sm" style={{ color: 'var(--dark-gray)' }}>
-                                      {item.customization || 'No customization specified'}
-                                    </p>
-                                  </div>
-                                  <button
-                                    onClick={() => startEditingCustomization(item)}
-                                    className="btn btn-ghost btn-sm"
-                                  >
-                                    <Edit size={14} />
-                                  </button>
-                                </div>
-                              </div>
-                            )}
+                        {specLines.length > 0 && (
+                          <div className="bg-gray-50 p-3 rounded text-sm space-y-0.5" style={{ color: "var(--dark-gray)" }}>
+                            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Custom order</p>
+                            {specLines.map((line) => (
+                              <p key={line}>{line}</p>
+                            ))}
                           </div>
                         )}
 
-                        {/* Quantity and Price */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <span className="text-sm" style={{ color: 'var(--stone-gray)' }}>
-                              Quantity:
-                            </span>
-                            <div className="flex items-center border rounded">
-                              <button
-                                onClick={() => updateQuantity(item._id, item.quantity - 1)}
-                                disabled={item.quantity <= 1 || updating[item._id]}
-                                className="p-2 hover:bg-gray-100 disabled:opacity-50"
-                              >
-                                <Minus size={16} />
+                        {editingItem === item._id ? (
+                          <div className="space-y-2">
+                            <textarea
+                              value={noteText}
+                              onChange={(e) => setNoteText(e.target.value)}
+                              placeholder="Anything we should know about this item?"
+                              className="input-field w-full h-20 resize-none"
+                            />
+                            <div className="flex gap-2">
+                              <button onClick={() => saveNote(item)} disabled={busy} className="btn btn-primary btn-sm">
+                                Save
                               </button>
-                              <span className="px-4 py-2 font-medium">
-                                {updating[item._id] ? '...' : item.quantity}
-                              </span>
-                              <button
-                                onClick={() => updateQuantity(item._id, item.quantity + 1)}
-                                disabled={updating[item._id]}
-                                className="p-2 hover:bg-gray-100"
-                              >
-                                <Plus size={16} />
+                              <button onClick={() => setEditingItem(null)} className="btn btn-secondary btn-sm">
+                                Cancel
                               </button>
                             </div>
                           </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setEditingItem(item._id);
+                              setNoteText(item.customization || "");
+                            }}
+                            className="text-sm flex items-center gap-1 hover:underline text-left"
+                            style={{ color: "var(--stone-gray)" }}
+                          >
+                            <Edit size={14} />
+                            {item.customization ? `Note: ${item.customization}` : "Add a note"}
+                          </button>
+                        )}
+
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center border rounded bg-white">
+                            <button
+                              onClick={() => updateQuantity(item, item.quantity - 1)}
+                              disabled={item.quantity <= 1 || busy}
+                              aria-label="Decrease quantity"
+                              className="p-2 hover:bg-gray-100 disabled:opacity-50"
+                            >
+                              <Minus size={16} />
+                            </button>
+                            <span className="px-4 py-2 font-medium">{item.quantity}</span>
+                            <button
+                              onClick={() => updateQuantity(item, item.quantity + 1)}
+                              disabled={busy}
+                              aria-label="Increase quantity"
+                              className="p-2 hover:bg-gray-100"
+                            >
+                              <Plus size={16} />
+                            </button>
+                          </div>
 
                           <div className="text-right">
-                            {priceChanged && (
-                              <div className="text-xs text-orange-600 mb-1">
-                                Price updated due to live metal rates
-                              </div>
-                            )}
-                            <div className="font-bold text-lg" style={{ color: 'var(--saffron)' }}>
-                              Rs. {Math.round(currentPrice * item.quantity).toLocaleString()}
+                            <div className="font-bold text-lg" style={{ color: "var(--saffron)" }}>
+                              {formatRs(item.priceSnapshot * item.quantity)}
                             </div>
-                            {priceChanged && (
-                              <div className="text-xs line-through text-gray-400">
-                                Rs. {Math.round(item.priceSnapshot * item.quantity).toLocaleString()}
-                              </div>
-                            )}
-                            <div className="text-xs" style={{ color: 'var(--stone-gray)' }}>
-                              Rs. {Math.round(currentPrice).toLocaleString()} each
+                            <div className="text-xs" style={{ color: "var(--stone-gray)" }}>
+                              {formatRs(item.priceSnapshot)} each
+                              {item.silverPriceSnapshot ? ` · silver ${formatRs(item.silverPriceSnapshot)}/tola` : ""}
                             </div>
                           </div>
                         </div>
@@ -427,76 +323,38 @@ const CartPage = () => {
             })}
           </div>
 
-          {/* Cart Summary */}
           <div className="space-y-6">
-            <div className="card">
+            <div className="card lg:sticky lg:top-24">
               <div className="card-body">
-                <h3 className="font-semibold text-lg mb-4" style={{ color: 'var(--dark-gray)' }}>
+                <h3 className="font-semibold text-lg mb-4" style={{ color: "var(--dark-gray)" }}>
                   Order Summary
                 </h3>
-                
                 <div className="space-y-3">
                   <div className="flex justify-between">
-                    <span style={{ color: 'var(--stone-gray)' }}>Items ({cart.totalItems})</span>
-                    <span>Rs. {Math.round(cart.calculatedTotal || cart.subtotal).toLocaleString()}</span>
+                    <span style={{ color: "var(--stone-gray)" }}>Items ({cart.totalItems})</span>
+                    <span>{formatRs(cart.subtotal)}</span>
                   </div>
-                  
-                  <div className="border-t pt-3">
-                    <div className="flex justify-between font-bold text-lg">
-                      <span style={{ color: 'var(--dark-gray)' }}>Total</span>
-                      <span style={{ color: 'var(--saffron)' }}>
-                        Rs. {Math.round(cart.calculatedTotal || cart.subtotal).toLocaleString()}
-                      </span>
-                    </div>
+                  <div className="border-t pt-3 flex justify-between font-bold text-lg">
+                    <span style={{ color: "var(--dark-gray)" }}>Estimated total</span>
+                    <span style={{ color: "var(--saffron)" }}>{formatRs(cart.subtotal)}</span>
                   </div>
+                  {hasSilver && (
+                    <p className="text-xs" style={{ color: "var(--stone-gray)" }}>
+                      Silver items follow the daily silver rate. The final price is confirmed when we contact you.
+                    </p>
+                  )}
                 </div>
-
                 <div className="mt-6 space-y-3">
-                  <Link
-                    to="/checkout"
-                    className="btn btn-primary w-full"
-                  >
+                  <Link to="/checkout" className="btn btn-primary w-full">
                     <CreditCard size={20} className="mr-2" />
                     Proceed to Checkout
                   </Link>
-                  
-                  <Link
-                    to="/products"
-                    className="btn btn-secondary w-full"
-                  >
+                  <Link to="/products" className="btn btn-secondary w-full">
                     Continue Shopping
                   </Link>
                 </div>
               </div>
             </div>
-
-            {/* Live Price Notice */}
-            {(silverPrice || goldPrice) && (
-              <div className="card">
-                <div className="card-body">
-                  <h4 className="font-medium mb-3" style={{ color: 'var(--dark-gray)' }}>
-                    Live Price Updates
-                  </h4>
-                  <div className="space-y-2 text-sm">
-                    {silverPrice && (
-                      <div className="flex justify-between">
-                        <span style={{ color: 'var(--stone-gray)' }}>Silver (per tola)</span>
-                        <span>Rs. {silverPrice.pricePerTola?.toLocaleString()}</span>
-                      </div>
-                    )}
-                    {goldPrice && (
-                      <div className="flex justify-between">
-                        <span style={{ color: 'var(--stone-gray)' }}>Gold (per tola)</span>
-                        <span>Rs. {goldPrice.pricePerTola?.toLocaleString()}</span>
-                      </div>
-                    )}
-                  </div>
-                  <p className="text-xs mt-2" style={{ color: 'var(--stone-gray)' }}>
-                    Prices may update based on current metal rates
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>

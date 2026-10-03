@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -24,6 +24,7 @@ import {
 import { Input } from "../ui/input"
 import { Textarea } from "../ui/textarea"
 import ApiService from "../../services/apiService"
+import { imageUrl as toImageUrl } from "../../lib/productDisplay"
 
 // Mirrors MATERIAL_TYPES in backend/src/Config/productTypes.js
 const MATERIAL_TYPES = [
@@ -37,7 +38,8 @@ const categorySchema = z.object({
   name: z.string().trim().min(1, "Category name is required"),
   materialType: z.string().min(1, "Material is required"),
   description: z.string().optional(),
-  imageUrl: z.union([z.literal(""), z.string().trim().url("Enter a valid URL")]),
+  // A pasted URL, or the /uploads/... path of an image uploaded earlier
+  imageUrl: z.union([z.literal(""), z.string().trim().regex(/^\/uploads\//), z.string().trim().url("Enter a valid URL")]),
 })
 
 const EMPTY = { name: "", materialType: "", description: "", imageUrl: "" }
@@ -51,6 +53,10 @@ export default function CategoryInputForm() {
   const [loaded, setLoaded] = useState(!isEdit)
   const [loadError, setLoadError] = useState("")
   const [productCount, setProductCount] = useState(0)
+  const [imageFile, setImageFile] = useState(null)
+  const [fileInputKey, setFileInputKey] = useState(0)
+  const filePreview = useMemo(() => (imageFile ? URL.createObjectURL(imageFile) : null), [imageFile])
+  useEffect(() => () => filePreview && URL.revokeObjectURL(filePreview), [filePreview])
 
   const form = useForm({
     resolver: zodResolver(categorySchema),
@@ -92,14 +98,23 @@ export default function CategoryInputForm() {
         description: values.description?.trim() || (isEdit ? "" : undefined),
         imageUrl: values.imageUrl?.trim() || (isEdit ? "" : undefined),
       }
+      // Send multipart only when there's a file to upload
+      let payload = body
+      if (imageFile) {
+        payload = new FormData()
+        Object.entries(body).forEach(([k, v]) => v !== undefined && payload.append(k, v))
+        payload.append("image", imageFile)
+      }
       if (isEdit) {
-        await ApiService.updateCategory(categoryId, body)
+        await ApiService.updateCategory(categoryId, payload)
         navigate("/admin/categories", { replace: true })
         return
       }
-      const result = await ApiService.createCategory(body)
+      const result = await ApiService.createCategory(payload)
       setCreated(result.category)
       form.reset(EMPTY)
+      setImageFile(null)
+      setFileInputKey((k) => k + 1)
     } catch (err) {
       setSubmitError(err.message || "Failed to save category")
     }
@@ -220,9 +235,24 @@ export default function CategoryInputForm() {
                 name="imageUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Image URL (optional)</FormLabel>
+                    <FormLabel>Image (optional)</FormLabel>
+                    {(imageFile || field.value) && (
+                      <img
+                        src={filePreview || toImageUrl(field.value)}
+                        alt=""
+                        className="h-32 w-full max-w-xs rounded-md object-cover bg-gray-100"
+                      />
+                    )}
+                    <input
+                      key={fileInputKey}
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.webp,.gif"
+                      onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+                      className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm"
+                    />
+                    <FormDescription>Upload an image, or paste an image URL below. An upload replaces the URL.</FormDescription>
                     <FormControl>
-                      <Input type="url" placeholder="https://..." {...field} />
+                      <Input type="text" placeholder="https://..." {...field} disabled={!!imageFile} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

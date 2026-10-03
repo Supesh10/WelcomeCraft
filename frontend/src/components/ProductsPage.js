@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Filter,
   Grid,
@@ -7,15 +7,17 @@ import {
   Search,
   ShoppingCart,
   Eye,
-  Star,
   TrendingUp,
   X,
   ChevronDown,
 } from "lucide-react";
 import ApiService from "../services/apiService";
+import { fallbackToPlaceholder, isCustomSilver, isSilver, priceLabel, productImage, variantLabel } from "../lib/productDisplay";
 
 const ProductsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [cartMessage, setCartMessage] = useState("");
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [silverPrice, setSilverPrice] = useState(null);
@@ -27,9 +29,11 @@ const ProductsPage = () => {
   const [searchTerm, setSearchTerm] = useState(
     searchParams.get("search") || ""
   );
+  // Selected category _id; older links use ?categoryName=, resolved below
   const [selectedCategory, setSelectedCategory] = useState(
-    searchParams.get("categoryName") || ""
+    searchParams.get("category") || ""
   );
+  const categoryNameParam = searchParams.get("categoryName");
   const [priceRange, setPriceRange] = useState({ min: "", max: "" });
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -54,8 +58,8 @@ const ProductsPage = () => {
         page: currentPage,
         limit: productsPerPage,
         sort: sortBy,
-        search: searchTerm,
-        categoryName: selectedCategory,
+        search: searchTerm.trim(),
+        category: selectedCategory,
         minPrice: priceRange.min,
         maxPrice: priceRange.max,
       };
@@ -74,7 +78,13 @@ const ProductsPage = () => {
   const fetchCategories = async () => {
     try {
       const response = await ApiService.getAllCategories(true);
-      setCategories(response.categories || []);
+      const list = response.categories || [];
+      setCategories(list);
+      // Support /products?categoryName=Silver links
+      if (categoryNameParam && !selectedCategory) {
+        const match = list.find((c) => c.name.toLowerCase() === categoryNameParam.toLowerCase());
+        if (match) handleCategoryFilter(match._id);
+      }
     } catch (error) {
       console.error("Failed to fetch categories:", error);
     }
@@ -99,38 +109,35 @@ const ProductsPage = () => {
   };
 
   const addToCart = async (product) => {
+    // Custom pieces need the customer's weight and design first
+    if (isCustomSilver(product)) {
+      navigate(`/product/${product._id}`);
+      return;
+    }
     try {
       const sessionId = ApiService.getSessionId();
       await ApiService.addToCart(sessionId, product._id, 1);
-      console.log("Added to cart:", product.title);
       window.dispatchEvent(new Event("storage"));
+      setCartMessage(`${product.title} was added to your cart.`);
     } catch (error) {
-      console.error("Add to cart error:", error);
+      setCartMessage(error.message || "Couldn't add that to your cart. Please try again.");
     }
+    setTimeout(() => setCartMessage(""), 3000);
   };
 
-  const calculatePrice = (product) => {
-    if (product.constantPrice) {
-      return `Rs. ${product.constantPrice.toLocaleString()}`;
-    }
-
-    if (silverPrice && product.weightInTola && product.makingCost) {
-      return `Silver per tola + Making charge Rs. ${silverPrice.pricePerTola.toString()} + ${product.makingCost.toString()}`;
-    }
-
-    return "Price on request";
-  };
-
-  const handleCategoryFilter = (categoryName) => {
-    setSelectedCategory(categoryName);
+  const handleCategoryFilter = (categoryId) => {
+    setSelectedCategory(categoryId);
     setCurrentPage(1);
-    if (categoryName) {
-      searchParams.set("categoryName", categoryName);
+    searchParams.delete("categoryName");
+    if (categoryId) {
+      searchParams.set("category", categoryId);
     } else {
-      searchParams.delete("categoryName");
+      searchParams.delete("category");
     }
     setSearchParams(searchParams);
   };
+
+  const selectedCategoryName = categories.find((c) => c._id === selectedCategory)?.name;
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -144,6 +151,7 @@ const ProductsPage = () => {
     setPriceRange({ min: "", max: "" });
     setCurrentPage(1);
     searchParams.delete("categoryName");
+    searchParams.delete("category");
     searchParams.delete("search");
     setSearchParams(searchParams);
   };
@@ -308,8 +316,8 @@ const ProductsPage = () => {
                         <input
                           type="radio"
                           name="category"
-                          checked={selectedCategory === category.name}
-                          onChange={() => handleCategoryFilter(category.name)}
+                          checked={selectedCategory === category._id}
+                          onChange={() => handleCategoryFilter(category._id)}
                           className="mr-3"
                         />
                         <span style={{ color: "var(--stone-gray)" }}>
@@ -389,7 +397,7 @@ const ProductsPage = () => {
                     className="px-3 py-1 rounded-full text-sm font-medium text-white flex items-center"
                     style={{ backgroundColor: "var(--saffron)" }}
                   >
-                    {selectedCategory}
+                    {selectedCategoryName || "Category"}
                     <button
                       onClick={() => handleCategoryFilter("")}
                       className="ml-2 hover:bg-white/20 rounded-full p-1 -mr-1"
@@ -457,6 +465,15 @@ const ProductsPage = () => {
               </div>
             </div>
 
+            {cartMessage && (
+              <div className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800 flex justify-between gap-3">
+                <span>{cartMessage}</span>
+                <Link to="/cart" className="underline font-medium">
+                  View cart
+                </Link>
+              </div>
+            )}
+
             {/* Products Grid/List */}
             {loading ? (
               <div className="text-center py-12">
@@ -489,10 +506,8 @@ const ProductsPage = () => {
                         }`}
                       >
                         <img
-                          src={
-                            product.imageUrl ||
-                            "https://via.placeholder.com/300x300?text=Product"
-                          }
+                          src={productImage(product)}
+                          onError={fallbackToPlaceholder}
                           alt={product.title}
                           className={`object-cover transition-transform duration-300 group-hover:scale-105 ${
                             viewMode === "list"
@@ -519,12 +534,12 @@ const ProductsPage = () => {
                             </button>
                           </div>
                         </div>
-                        {product.category?.name.includes("Silver") && (
+                        {isSilver(product) && (
                           <div
                             className="absolute top-2 right-2 px-2 py-1 rounded text-xs font-semibold text-white"
                             style={{ backgroundColor: "var(--saffron)" }}
                           >
-                            Live Price
+                            {isCustomSilver(product) ? "Made to order" : "Live Price"}
                           </div>
                         )}
                       </div>
@@ -539,13 +554,15 @@ const ProductsPage = () => {
                             className="font-semibold mb-1 truncate"
                             style={{ color: "var(--dark-gray)" }}
                           >
-                            {product.title}
+                            <Link to={`/product/${product._id}`} className="hover:underline">
+                              {product.title}
+                            </Link>
                           </h3>
                           <p
                             className="text-sm mb-2"
                             style={{ color: "var(--stone-gray)" }}
                           >
-                            {product.category?.name}
+                            {[product.category?.name, variantLabel(product)].filter(Boolean).join(" · ")}
                           </p>
                           {viewMode === "list" && product.description && (
                             <p
@@ -567,17 +584,8 @@ const ProductsPage = () => {
                             className="text-lg font-bold"
                             style={{ color: "var(--saffron)" }}
                           >
-                            {calculatePrice(product)}
+                            {priceLabel(product)}
                           </span>
-                          <div className="flex items-center space-x-1">
-                            {[...Array(5)].map((_, i) => (
-                              <Star
-                                key={i}
-                                size={14}
-                                className="text-yellow-400 fill-current"
-                              />
-                            ))}
-                          </div>
                         </div>
                         {viewMode === "list" && (
                           <div className="flex space-x-2 mt-3">
@@ -591,7 +599,7 @@ const ProductsPage = () => {
                               onClick={() => addToCart(product)}
                               className="btn btn-golden btn-sm flex-1"
                             >
-                              Add to Cart
+                              {isCustomSilver(product) ? "Customize" : "Add to Cart"}
                             </button>
                           </div>
                         )}

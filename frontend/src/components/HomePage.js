@@ -4,7 +4,6 @@ import {
   ChevronRight,
   ShoppingCart,
   Eye,
-  Star,
   ArrowRight,
   Sparkles,
   TrendingUp,
@@ -12,10 +11,14 @@ import {
   Users,
   Package,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import ApiService from "../services/apiService";
+import { fallbackToPlaceholder, imageUrl, isCustomSilver, isSilver, priceLabel, productImage, variantLabel } from "../lib/productDisplay";
+
+const MATERIAL_ICONS = { gold: "🏆", silver: "🥈", bronze: "🥉", copper: "🟠" };
 
 const HomePage = () => {
+  const navigate = useNavigate();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [featuredProducts, setFeaturedProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -71,6 +74,11 @@ const HomePage = () => {
   }, []);
 
   const addToCart = async (product) => {
+    // Custom pieces need the customer's weight and design first
+    if (isCustomSilver(product)) {
+      navigate(`/product/${product._id}`);
+      return;
+    }
     try {
       const sessionId = ApiService.getSessionId();
       await ApiService.addToCart(sessionId, product._id, 1);
@@ -81,20 +89,6 @@ const HomePage = () => {
     } catch (error) {
       console.error("Add to cart error:", error);
     }
-  };
-
-  const calculatePrice = (product) => {
-    if (product.constantPrice) {
-      return `Rs. ${product.constantPrice.toLocaleString()}`;
-    }
-
-    if (silverPrice && product.weightInTola && product.makingCost) {
-      const totalPrice =
-        silverPrice.pricePerTola * product.weightInTola + product.makingCost;
-      return `Rs. ${Math.round(totalPrice).toLocaleString()}`;
-    }
-
-    return "Price on request";
   };
 
   const nextSlide = () => {
@@ -356,26 +350,26 @@ const HomePage = () => {
             {categories.map((category) => (
               <Link
                 key={category._id}
-                to={`/products?categoryName=${encodeURIComponent(
-                  category.name
-                )}`}
+                to={`/products?category=${category._id}`}
                 className="card group cursor-pointer"
               >
+                {category.imageUrl && (
+                  <img
+                    src={imageUrl(category.imageUrl)}
+                    alt={category.name}
+                    onError={(e) => (e.currentTarget.style.display = "none")}
+                    className="w-full h-48 object-cover"
+                  />
+                )}
                 <div className="card-body text-center">
-                  <div
-                    className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: "var(--cream)" }}
-                  >
-                    <span className="text-3xl">
-                      {category.name.includes("Gold")
-                        ? "🏆"
-                        : category.name.includes("Silver")
-                        ? "🥈"
-                        : category.name.includes("Bronze")
-                        ? "🥉"
-                        : "🎨"}
-                    </span>
-                  </div>
+                  {!category.imageUrl && (
+                    <div
+                      className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: "var(--cream)" }}
+                    >
+                      <span className="text-3xl">{MATERIAL_ICONS[category.materialType] || "🎨"}</span>
+                    </div>
+                  )}
                   <h3
                     className="text-xl font-display font-semibold mb-2"
                     style={{ color: "var(--dark-gray)" }}
@@ -430,10 +424,8 @@ const HomePage = () => {
                 <div key={product._id} className="card group">
                   <div className="relative overflow-hidden">
                     <img
-                      src={
-                        product.imageUrl ||
-                        "https://via.placeholder.com/300x300?text=Product"
-                      }
+                      src={productImage(product)}
+                      onError={fallbackToPlaceholder}
                       alt={product.title}
                       className="w-full h-64 object-cover transition-transform duration-300 group-hover:scale-105"
                     />
@@ -456,12 +448,12 @@ const HomePage = () => {
                         </button>
                       </div>
                     </div>
-                    {product.category?.name.includes("Silver") && (
+                    {isSilver(product) && (
                       <div
                         className="absolute top-2 right-2 px-2 py-1 rounded text-xs font-semibold text-white"
                         style={{ backgroundColor: "var(--saffron)" }}
                       >
-                        Live Price
+                        {isCustomSilver(product) ? "Made to order" : "Live Price"}
                       </div>
                     )}
                   </div>
@@ -476,24 +468,15 @@ const HomePage = () => {
                       className="text-sm mb-2"
                       style={{ color: "var(--stone-gray)" }}
                     >
-                      {product.category?.name}
+                      {[product.category?.name, variantLabel(product)].filter(Boolean).join(" · ")}
                     </p>
                     <div className="flex items-center justify-between">
                       <span
                         className="text-lg font-bold"
                         style={{ color: "var(--saffron)" }}
                       >
-                        {calculatePrice(product)}
+                        {priceLabel(product)}
                       </span>
-                      <div className="flex items-center space-x-1">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            size={14}
-                            className="text-yellow-400 fill-current"
-                          />
-                        ))}
-                      </div>
                     </div>
                   </div>
                 </div>

@@ -1,7 +1,9 @@
 import { useEffect } from "react"
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react"
 import { Button } from "../ui/button"
-import { SERVER_URL } from "../../services/apiService"
+import { imageUrl, formatRs } from "../../lib/productDisplay"
+
+export { imageUrl, formatRs }
 
 // Shared building blocks for the admin list and form pages
 
@@ -25,12 +27,8 @@ const LABELS = {
 }
 export const label = (value) => LABELS[value] || value
 
-export const formatRs = (value) =>
-  value == null || Number.isNaN(Number(value)) ? "—" : `Rs. ${Math.round(Number(value)).toLocaleString()}`
-
 export const formatDate = (value) => (value ? new Date(value).toLocaleDateString() : "—")
 
-export const imageUrl = (path) => (!path ? null : /^https?:\/\//.test(path) ? path : `${SERVER_URL}${path}`)
 
 // Short description of what kind of product this is
 export function describeProduct(product) {

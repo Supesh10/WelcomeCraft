@@ -3,6 +3,7 @@ const { PRODUCT_MODELS } = require("../Model/productModel");
 const Category = require("../Model/categoryModel");
 const { PRODUCT_TYPE_BY_MATERIAL } = require("../Config/productTypes");
 const { getLatestSilverRate, withPricing } = require("../Services/pricingService");
+const { toPublicPath } = require("../Middleware/uploadMiddleware");
 
 // Multipart forms send nested objects either as `a[b]` fields (parsed by
 // multer) or as JSON strings. Accept both.
@@ -121,7 +122,7 @@ exports.createProduct = async (req, res) => {
     const { category, productType, error } = await resolveCategory(req.body.category);
     if (error) return res.status(400).json({ message: error });
 
-    const images = req.files ? req.files.map((file) => `/uploads/${file.filename}`) : [];
+    const images = req.files ? req.files.map(toPublicPath) : [];
 
     const Model = PRODUCT_MODELS[productType];
     const product = new Model({
@@ -151,20 +152,31 @@ exports.getAllProducts = async (req, res) => {
       goldFinish,
       platingMethod,
       search,
+      includeInactive,
+      sort = "newest",
+      minPrice,
+      maxPrice,
       limit = 50,
       page = 1,
     } = req.query;
 
     const filter = {};
 
+    // Hidden products only appear in the admin panel
+    if (String(includeInactive) !== "true") {
+      filter.isActive = { $ne: false };
+    }
+
     if (category) {
       filter.category = category;
     }
 
     if (categoryName) {
-      const categoryDoc = await Category.findOne({
-        name: { $regex: categoryName, $options: "i" },
-      });
+      const escaped = categoryName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      // Exact (case-insensitive) match first, so "Silver" doesn't pick "Silver Statues"
+      const categoryDoc =
+        (await Category.findOne({ name: new RegExp(`^${escaped}$`, "i") })) ||
+        (await Category.findOne({ name: new RegExp(escaped, "i") }));
       if (!categoryDoc) {
         return res.status(404).json({
           message: `No category found with name: ${categoryName}`,
@@ -186,26 +198,61 @@ exports.getAllProducts = async (req, res) => {
       filter.title = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
     }
 
-    const skip = (page - 1) * limit;
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 50));
+    const skip = (pageNum - 1) * limitNum;
+    const silverRate = await getLatestSilverRate();
+    const populate = { path: "category", select: "name description imageUrl materialType" };
 
-    const [products, total, silverRate] = await Promise.all([
-      Product.find(filter)
-        .populate({ path: "category", select: "name description imageUrl materialType" })
-        .limit(parseInt(limit))
-        .skip(skip)
-        .sort({ createdAt: -1 }),
-      Product.countDocuments(filter),
-      getLatestSilverRate(),
-    ]);
+    // Silver prices depend on today's rate, so price sorting and filtering
+    // can't run in MongoDB; do them in memory (the catalogue is small).
+    const byPrice = sort === "price-asc" || sort === "price-desc" || minPrice || maxPrice;
+
+    let products;
+    let total;
+    if (byPrice) {
+      const all = await Product.find(filter).populate(populate);
+      let priced = await Promise.all(all.map((p) => withPricing(p, silverRate)));
+      // Custom pieces have no single price; compare on the lowest possible price
+      const priceOf = (p) => p.pricing?.price ?? p.pricing?.priceRange?.min ?? null;
+      const min = minPrice !== undefined && minPrice !== "" ? Number(minPrice) : null;
+      const max = maxPrice !== undefined && maxPrice !== "" ? Number(maxPrice) : null;
+      if (min != null || max != null) {
+        priced = priced.filter((p) => {
+          const price = priceOf(p);
+          return price != null && (min == null || price >= min) && (max == null || price <= max);
+        });
+      }
+      if (sort === "price-asc" || sort === "price-desc") {
+        const dir = sort === "price-asc" ? 1 : -1;
+        priced.sort((a, b) => {
+          const pa = priceOf(a);
+          const pb = priceOf(b);
+          if (pa == null) return 1; // unpriced last
+          if (pb == null) return -1;
+          return (pa - pb) * dir;
+        });
+      }
+      total = priced.length;
+      products = priced.slice(skip, skip + limitNum);
+    } else {
+      const sortSpec = sort === "name" ? { title: 1 } : sort === "oldest" ? { createdAt: 1 } : { createdAt: -1 };
+      const [docs, count] = await Promise.all([
+        Product.find(filter).populate(populate).sort(sortSpec).skip(skip).limit(limitNum),
+        Product.countDocuments(filter),
+      ]);
+      products = await Promise.all(docs.map((p) => withPricing(p, silverRate)));
+      total = count;
+    }
 
     res.status(200).json({
-      products: await Promise.all(products.map((p) => withPricing(p, silverRate))),
+      products,
       pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(total / limit),
+        currentPage: pageNum,
+        totalPages: Math.ceil(total / limitNum),
         totalProducts: total,
         hasNext: skip + products.length < total,
-        limit: parseInt(limit),
+        limit: limitNum,
       },
       filter,
     });
@@ -261,7 +308,7 @@ exports.updateProduct = async (req, res) => {
     product.set({ ...fields, category: category._id });
 
     if (req.files && req.files.length) {
-      const uploaded = req.files.map((file) => `/uploads/${file.filename}`);
+      const uploaded = req.files.map(toPublicPath);
       product.images = String(req.body.replaceImages) === "true" ? uploaded : [...product.images, ...uploaded];
     }
 

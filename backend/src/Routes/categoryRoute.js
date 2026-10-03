@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const categoryController = require("../Controller/categoryController");
 const authMiddleware = require("../Middleware/authMiddleware");
+const { categoryImage } = require("../Middleware/uploadMiddleware");
 
 // Public routes
 router.get("/categories", categoryController.getAllCategories); // Get all categories
@@ -12,8 +13,8 @@ router.get("/categories/:categoryId/schema", categoryController.getCategoryProdu
 router.get("/product-schemas/:materialType", categoryController.getProductSchemaByMaterial); // Product fields for a material type
 
 // Admin protected routes
-router.post("/categories", authMiddleware, categoryController.createCategory); // Create category
-router.put("/categories/:categoryId", authMiddleware, categoryController.updateCategory); // Update category
+router.post("/categories", authMiddleware, categoryImage, categoryController.createCategory); // Create category
+router.put("/categories/:categoryId", authMiddleware, categoryImage, categoryController.updateCategory); // Update category
 router.delete("/categories/:categoryId", authMiddleware, categoryController.deleteCategory); // Delete category
 
 // Legacy routes (for backward compatibility)

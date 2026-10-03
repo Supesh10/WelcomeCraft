@@ -45,8 +45,9 @@ categorySchema.methods.getProductSchemaSpec = function () {
   return getProductSchemaSpec(this.materialType);
 };
 
-// Generate incremental numeric categoryId before saving
-categorySchema.pre("save", async function (next) {
+// Generate incremental numeric categoryId. Runs before validation, because
+// categoryId is required and validation happens before "save" hooks.
+categorySchema.pre("validate", async function (next) {
   if (this.isNew && !this.categoryId) {
     try {
       const counter = await Counter.findByIdAndUpdate(

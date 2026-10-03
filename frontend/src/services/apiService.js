@@ -59,6 +59,11 @@ class ApiService {
       params.append("categoryName", filters.categoryName);
     if (filters.materialType) params.append("materialType", filters.materialType);
     if (filters.search) params.append("search", filters.search);
+    if (filters.sort) params.append("sort", filters.sort);
+    if (filters.minPrice) params.append("minPrice", filters.minPrice);
+    if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
+    // Hidden products are only returned when asked for (admin panel)
+    if (filters.includeInactive) params.append("includeInactive", "true");
     if (filters.limit) params.append("limit", filters.limit);
     if (filters.page) params.append("page", filters.page);
 
@@ -125,17 +130,24 @@ class ApiService {
     return this.makeRequest(`/categories/${categoryId}/schema`);
   }
 
+  // Accepts FormData (with an image file) or a plain object
   static async createCategory(categoryData) {
     return this.makeRequest("/categories", {
       method: "POST",
-      body: JSON.stringify(categoryData),
+      body:
+        categoryData instanceof FormData
+          ? categoryData
+          : JSON.stringify(categoryData),
     });
   }
 
   static async updateCategory(categoryId, categoryData) {
     return this.makeRequest(`/categories/${categoryId}`, {
       method: "PUT",
-      body: JSON.stringify(categoryData),
+      body:
+        categoryData instanceof FormData
+          ? categoryData
+          : JSON.stringify(categoryData),
     });
   }
 
@@ -268,27 +280,30 @@ class ApiService {
     return this.makeRequest(`/cart/${sessionId}`);
   }
 
-  static async addToCart(
-    sessionId,
-    productId,
-    quantity = 1,
-    customization = null
-  ) {
+  // options: { customization, customSpecification } (the latter is
+  // required for custom silver products)
+  static async addToCart(sessionId, productId, quantity = 1, options = {}) {
+    const { customization, customSpecification } =
+      typeof options === "string" || options === null
+        ? { customization: options }
+        : options;
     return this.makeRequest(`/cart/${sessionId}/add`, {
       method: "POST",
-      body: JSON.stringify({ productId, quantity, customization }),
+      body: JSON.stringify({
+        productId,
+        quantity,
+        customization: customization || undefined,
+        customSpecification,
+      }),
     });
   }
 
-  static async updateCartItem(
-    sessionId,
-    itemId,
-    quantity,
-    customization = null
-  ) {
+  // changes: { quantity, customization, customSpecification }; only the
+  // keys given are updated
+  static async updateCartItem(sessionId, itemId, changes = {}) {
     return this.makeRequest(`/cart/${sessionId}/item/${itemId}`, {
       method: "PUT",
-      body: JSON.stringify({ quantity, customization }),
+      body: JSON.stringify(changes),
     });
   }
 
@@ -304,10 +319,24 @@ class ApiService {
     });
   }
 
+  // customerInfo: { name, phone, email, address, orderNotes }
   static async updateCustomerInfo(sessionId, customerInfo) {
     return this.makeRequest(`/cart/${sessionId}/customer`, {
       method: "PUT",
-      body: JSON.stringify(customerInfo),
+      body: JSON.stringify({
+        customerName: customerInfo.name,
+        customerPhone: customerInfo.phone,
+        customerEmail: customerInfo.email,
+        customerAddress: customerInfo.address,
+        orderNotes: customerInfo.orderNotes,
+      }),
+    });
+  }
+
+  // Saves the cart as orders, empties it and returns { whatsappUrl, orderSummary }
+  static async placeOrder(sessionId) {
+    return this.makeRequest(`/cart/${sessionId}/checkout`, {
+      method: "POST",
     });
   }
 

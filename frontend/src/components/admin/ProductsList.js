@@ -48,7 +48,7 @@ export default function ProductsList() {
     setLoading(true)
     setError("")
     try {
-      const data = await ApiService.getAllProducts({ ...filters, limit: PAGE_SIZE })
+      const data = await ApiService.getAllProducts({ ...filters, includeInactive: true, limit: PAGE_SIZE })
       setProducts(data.products || [])
       setPagination(data.pagination)
     } catch (err) {

@@ -1,8 +1,16 @@
 // Admin session helpers. The JWT from /api/admin/login is kept in
-// localStorage; these helpers read it and tell whether it is still valid.
+// sessionStorage, so closing the browser ends the admin session and the
+// login page is shown again on the next visit.
 
 const TOKEN_KEY = "admin_token";
 const USER_KEY = "admin_user";
+const store = window.sessionStorage;
+
+// Logins used to be kept in localStorage for days; drop any left over
+try {
+  window.localStorage.removeItem(TOKEN_KEY);
+  window.localStorage.removeItem(USER_KEY);
+} catch {}
 
 // Fired when the session ends (logout or a 401 from the API) so the
 // admin route guard can redirect to the login page.
@@ -19,7 +27,7 @@ const decodePayload = (token) => {
 
 export const getAdminToken = () => {
   try {
-    const token = localStorage.getItem(TOKEN_KEY);
+    const token = store.getItem(TOKEN_KEY);
     if (!token) return null;
     const payload = decodePayload(token);
     // Treat malformed or expired tokens as no token
@@ -35,21 +43,21 @@ export const getAdminToken = () => {
 
 export const getAdminUser = () => {
   try {
-    return JSON.parse(localStorage.getItem(USER_KEY) || "null");
+    return JSON.parse(store.getItem(USER_KEY) || "null");
   } catch {
     return null;
   }
 };
 
 export const saveAdminSession = (token, admin) => {
-  localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(USER_KEY, JSON.stringify(admin || {}));
+  store.setItem(TOKEN_KEY, token);
+  store.setItem(USER_KEY, JSON.stringify(admin || {}));
   window.dispatchEvent(new Event(AUTH_EVENT));
 };
 
 export const clearAdminSession = () => {
-  const hadToken = localStorage.getItem(TOKEN_KEY);
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
+  const hadToken = store.getItem(TOKEN_KEY);
+  store.removeItem(TOKEN_KEY);
+  store.removeItem(USER_KEY);
   if (hadToken) window.dispatchEvent(new Event(AUTH_EVENT));
 };

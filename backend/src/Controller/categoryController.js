@@ -2,11 +2,14 @@ const Category = require("../Model/categoryModel");
 const Product = require("../Model/productModel");
 const { MATERIAL_TYPES, getProductSchemaSpec } = require("../Config/productTypes");
 const { getLatestSilverRate, withPricing } = require("../Services/pricingService");
+const { toPublicPath } = require("../Middleware/uploadMiddleware");
 
 // Create Category
 exports.createCategory = async (req, res) => {
   try {
-    const { name, description, imageUrl, categoryId } = req.body;
+    const { name, description, categoryId } = req.body;
+    // An uploaded file wins over a pasted image URL
+    const imageUrl = req.file ? toPublicPath(req.file) : req.body.imageUrl;
     const materialType = req.body.materialType?.toLowerCase();
 
     if (!name) {
@@ -104,7 +107,8 @@ exports.getCategoryByCustomId = async (req, res) => {
 // Update Category
 exports.updateCategory = async (req, res) => {
   try {
-    const { name, description, imageUrl } = req.body;
+    const { name, description } = req.body;
+    const imageUrl = req.file ? toPublicPath(req.file) : req.body.imageUrl;
     const materialType = req.body.materialType?.toLowerCase();
 
     const category = await Category.findById(req.params.categoryId);

@@ -26,7 +26,7 @@ export default function Navbar() {
       try {
         const sessionId = ApiService.getSessionId();
         const response = await ApiService.getCart(sessionId);
-        setCartCount(response.totalItems || 0);
+        setCartCount(response.cart?.totalItems || 0);
       } catch (error) {
         console.error("Error fetching cart count:", error);
         setCartCount(0);
