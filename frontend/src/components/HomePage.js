@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
 import {
-  ChevronLeft,
-  ChevronRight,
   ShoppingCart,
   Eye,
   ArrowRight,
@@ -19,7 +17,7 @@ const MATERIAL_ICONS = { gold: "🏆", silver: "🥈", bronze: "🥉", copper: "
 
 const HomePage = () => {
   const navigate = useNavigate();
-  const [currentSlide, setCurrentSlide] = useState(0);
+  // const [currentSlide, setCurrentSlide] = useState(0);
   const [featuredProducts, setFeaturedProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [silverPrice, setSilverPrice] = useState(null);
@@ -91,19 +89,19 @@ const HomePage = () => {
     }
   };
 
-  const nextSlide = () => {
-    setCurrentSlide(
-      (prev) => (prev + 1) % Math.max(1, featuredProducts.length - 2)
-    );
-  };
+  // const nextSlide = () => {
+  //   setCurrentSlide(
+  //     (prev) => (prev + 1) % Math.max(1, featuredProducts.length - 2)
+  //   );
+  // };
 
-  const prevSlide = () => {
-    setCurrentSlide(
-      (prev) =>
-        (prev - 1 + Math.max(1, featuredProducts.length - 2)) %
-        Math.max(1, featuredProducts.length - 2)
-    );
-  };
+  // const prevSlide = () => {
+  //   setCurrentSlide(
+  //     (prev) =>
+  //       (prev - 1 + Math.max(1, featuredProducts.length - 2)) %
+  //       Math.max(1, featuredProducts.length - 2)
+  //   );
+  // };
 
   if (loading) {
     return (

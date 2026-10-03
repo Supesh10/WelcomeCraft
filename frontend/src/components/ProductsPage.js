@@ -25,7 +25,7 @@ const ProductsPage = () => {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState("grid");
   const [sortBy, setSortBy] = useState("name");
-  const [filterOpen, setFilterOpen] = useState(false);
+  // const [filterOpen, setFilterOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState(
     searchParams.get("search") || ""
   );
