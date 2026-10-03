@@ -9,11 +9,13 @@ import AdminLogin from './components/admin/AdminLogin';
 import AdminDashboard from './components/admin/AdminDashboard';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import ApiService from './services/apiService';
 import ProductInputForm from './components/admin/ProductInputForm';
-import NavbarAdmin from './components/admin/NavbarAdmin';
+import CategoryInputForm from './components/admin/CategoryInputForm';
+import RequireAdmin from './components/admin/RequireAdmin';
+import AdminComingSoon from './components/admin/AdminComingSoon';
 
 function AppWrapper() {
   const location = useLocation();
@@ -24,18 +26,21 @@ function AppWrapper() {
     ApiService.getSessionId();
   }, []);
 
-  // Admin routes don't show navbar/footer
+  // Admin routes use their own layout instead of the shop navbar/footer.
+  // Only the login page is public; everything else goes through RequireAdmin.
   if (isAdminRoute) {
     return (
-      <div className="min-h-screen">
-        <NavbarAdmin />
-          <Routes>
-            <Route path="/admin/login" element={<AdminLogin />} />
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
-            <Route path='/admin/createprod' element={<ProductInputForm/>} />
-            {/* Add more admin routes here as needed */}
-          </Routes>
-      </div>
+      <Routes>
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin" element={<RequireAdmin />}>
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<AdminDashboard />} />
+          <Route path="products/new" element={<ProductInputForm />} />
+          <Route path="categories/new" element={<CategoryInputForm />} />
+          <Route path="createprod" element={<Navigate to="/admin/products/new" replace />} />
+          <Route path="*" element={<AdminComingSoon />} />
+        </Route>
+      </Routes>
     );
   }
 

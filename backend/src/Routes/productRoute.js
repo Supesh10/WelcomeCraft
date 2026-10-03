@@ -19,8 +19,7 @@ const upload = multer({ storage: storage });
 
 
 // Create a new product
-// router.post("/products", authMiddleware, productController.createProduct);
-router.post('/products', upload.array('images'), productController.createProduct);
+router.post('/products', authMiddleware, upload.array('images'), productController.createProduct);
 
 
 // Get all products

@@ -1,28 +1,45 @@
-const API_BASE_URL =
+import { getAdminToken, clearAdminSession } from "./adminAuth";
+
+export const API_BASE_URL =
   process.env.REACT_APP_API_URL || "http://localhost:8081/api";
+
+// Base URL of the backend itself, for uploaded images (/uploads/...)
+export const SERVER_URL = API_BASE_URL.replace(/\/api\/?$/, "");
 
 class ApiService {
   // Helper method for making API calls
   static async makeRequest(endpoint, options = {}) {
     try {
       const url = `${API_BASE_URL}${endpoint}`;
+      const token = getAdminToken();
+      const isFormData = options.body instanceof FormData;
       const config = {
+        ...options,
         headers: {
-          "Content-Type": "application/json",
+          // Let the browser set the multipart boundary for FormData
+          ...(isFormData ? {} : { "Content-Type": "application/json" }),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...options.headers,
         },
-        ...options,
       };
 
       const response = await fetch(url, config);
+
+      // Admin session expired or was revoked
+      if (response.status === 401 && token) {
+        clearAdminSession();
+      }
 
       if (!response.ok) {
         const errorData = await response
           .json()
           .catch(() => ({ message: "Network error" }));
-        throw new Error(
+        const error = new Error(
           errorData.message || `HTTP error! status: ${response.status}`
         );
+        error.status = response.status;
+        error.details = errorData.errors;
+        throw error;
       }
 
       return await response.json();
@@ -62,13 +79,16 @@ class ApiService {
 
   static async getProductById(productId) {
     return this.makeRequest(`/products/${productId}`);
-    console.log(productId);
   }
 
+  // Accepts FormData (with images) or a plain object
   static async createProduct(productData) {
     return this.makeRequest("/products", {
       method: "POST",
-      body: JSON.stringify(productData),
+      body:
+        productData instanceof FormData
+          ? productData
+          : JSON.stringify(productData),
     });
   }
 
@@ -93,6 +113,10 @@ class ApiService {
 
   static async getCategoryById(categoryId) {
     return this.makeRequest(`/categories/${categoryId}`);
+  }
+
+  static async getCategoryProductSchema(categoryId) {
+    return this.makeRequest(`/categories/${categoryId}/schema`);
   }
 
   static async createCategory(categoryData) {
@@ -182,12 +206,8 @@ class ApiService {
     });
   }
 
-  static async getAdminProfile(token) {
-    return this.makeRequest("/admin/profile", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+  static async getAdminProfile() {
+    return this.makeRequest("/admin/profile");
   }
 
   // Utility methods

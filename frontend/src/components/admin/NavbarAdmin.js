@@ -1,11 +1,11 @@
 import { useId } from "react"
-import { SearchIcon, Bell, User, Menu } from "lucide-react"
+import { Link, NavLink, useNavigate } from "react-router-dom"
+import { SearchIcon, User, Menu, LogOut } from "lucide-react"
 import { Button } from "../ui/button"
 import { Input } from "../ui/input"
 import {
   NavigationMenu,
   NavigationMenuItem,
-  NavigationMenuLink,
   NavigationMenuList,
 } from "../ui/navigation-menu"
 import {
@@ -21,7 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu"
-import { Badge } from "../ui/badge"
+import { clearAdminSession, getAdminUser } from "../../services/adminAuth"
 
 // Logo Component
 function Logo() {
@@ -35,59 +35,16 @@ function Logo() {
   )
 }
 
-// Notification Menu Component
-function NotificationMenu() {
-  const notifications = [
-    { id: 1, message: "New order received", time: "5 min ago", unread: true },
-    { id: 2, message: "Product out of stock", time: "1 hour ago", unread: true },
-    { id: 3, message: "Payment confirmed", time: "2 hours ago", unread: false },
-  ]
-
-  const unreadCount = notifications.filter(n => n.unread).length
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative h-8 w-8">
-          <Bell className="h-4 w-4" />
-          {unreadCount > 0 && (
-            <Badge 
-              variant="destructive" 
-              className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
-            >
-              {unreadCount}
-            </Badge>
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80">
-        <DropdownMenuLabel className="flex items-center justify-between">
-          Notifications
-          <Badge variant="secondary">{unreadCount} new</Badge>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {notifications.map((notification) => (
-          <DropdownMenuItem key={notification.id} className="flex flex-col items-start p-4">
-            <div className="flex w-full items-start justify-between">
-              <p className="text-sm font-medium">{notification.message}</p>
-              {notification.unread && (
-                <div className="h-2 w-2 rounded-full bg-blue-500"></div>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">{notification.time}</p>
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-center">
-          <span className="text-sm text-muted-foreground">View all notifications</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
-
 // User Menu Component
 function UserMenu() {
+  const navigate = useNavigate()
+  const admin = getAdminUser() || {}
+
+  const handleLogout = () => {
+    clearAdminSession()
+    navigate("/admin/login", { replace: true })
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -101,19 +58,17 @@ function UserMenu() {
       <DropdownMenuContent align="end" className="w-56 shadow-lg rounded-xl">
         <DropdownMenuLabel>
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-semibold text-gray-800">Admin User</p>
-            <p className="text-xs text-gray-500">admin@welcomecraft.com</p>
+            <p className="text-sm font-semibold text-gray-800">{admin.username || "Admin"}</p>
+            <p className="text-xs text-gray-500">Administrator</p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
-          <User className="mr-2 h-4 w-4 text-gray-500" />
-          Profile
+        <DropdownMenuItem onSelect={() => navigate("/")}>
+          View website
         </DropdownMenuItem>
-        <DropdownMenuItem>Settings</DropdownMenuItem>
-        <DropdownMenuItem>Support</DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-red-600 font-medium">
+        <DropdownMenuItem onSelect={handleLogout} className="text-red-600 font-medium">
+          <LogOut className="mr-2 h-4 w-4" />
           Log out
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -122,14 +77,16 @@ function UserMenu() {
 }
 
 
-// Navigation links array to be used in both desktop and mobile menus
+// Navigation links used in both desktop and mobile menus
 const navigationLinks = [
-  { href: "#", label: "Dashboard", active: true },
-  { href: "#", label: "Products" },
-  { href: "#", label: "Orders" },
-  { href: "#", label: "Customers" },
-  { href: "#", label: "Analytics" },
+  { to: "/admin/dashboard", label: "Dashboard" },
+  { to: "/admin/products/new", label: "Add Product" },
+  { to: "/admin/categories/new", label: "Add Category" },
+  { to: "/admin/orders", label: "Orders" },
 ]
+
+const linkClass = (base, active, inactive) => ({ isActive }) =>
+  `${base} ${isActive ? active : inactive}`
 
 export default function NavbarAdmin() {
   const id = useId()
@@ -155,14 +112,16 @@ export default function NavbarAdmin() {
                 <NavigationMenuList className="flex-col items-start gap-0 md:gap-2">
                   {navigationLinks.map((link, index) => (
                     <NavigationMenuItem key={index} className="w-full">
-                      <NavigationMenuLink
-                        href={link.href}
-                        className={`py-2 px-3 rounded-md w-full text-left hover:bg-gray-100 ${
-                          link.active ? 'bg-orange-50 text-orange-600 font-medium' : 'text-gray-700'
-                        }`}
-                      >
-                        {link.label}
-                      </NavigationMenuLink>
+                      <NavLink
+                          to={link.to}
+                          className={linkClass(
+                            "block py-2 px-3 rounded-md w-full text-left hover:bg-gray-100",
+                            "bg-orange-50 text-orange-600 font-medium",
+                            "text-gray-700"
+                          )}
+                        >
+                          {link.label}
+                        </NavLink>
                     </NavigationMenuItem>
                   ))}
                 </NavigationMenuList>
@@ -171,9 +130,9 @@ export default function NavbarAdmin() {
           </Popover>
           {/* Logo */}
           <div className="flex items-center">
-            <a href="#" className="text-primary hover:text-primary/90">
+            <Link to="/admin/dashboard" className="text-primary hover:text-primary/90">
               <Logo />
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -199,8 +158,6 @@ export default function NavbarAdmin() {
 
         {/* Right side */}
         <div className="flex flex-1 items-center justify-end gap-2">
-          {/* Notification */}
-          <NotificationMenu />
           {/* User menu */}
           <UserMenu />
         </div>
@@ -212,16 +169,17 @@ export default function NavbarAdmin() {
           <NavigationMenuList className="gap-1">
             {navigationLinks.map((link, index) => (
               <NavigationMenuItem key={index}>
-                <NavigationMenuLink
-                  href={link.href}
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    link.active 
-                      ? 'bg-orange-100 text-orange-700' 
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
-                >
-                  {link.label}
-                </NavigationMenuLink>
+                <NavLink
+                    to={link.to}
+                    end
+                    className={linkClass(
+                      "px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                      "bg-orange-100 text-orange-700",
+                      "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                    )}
+                  >
+                    {link.label}
+                  </NavLink>
               </NavigationMenuItem>
             ))}
           </NavigationMenuList>

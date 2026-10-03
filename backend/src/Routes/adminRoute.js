@@ -11,13 +11,13 @@ router.post("/admin/login", async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
-      return res.status(400).json({ message: "Email and password are required" });
+      return res.status(400).json({ message: "Username and password are required" });
     }
 
-    // Find admin by email
+    // Same message for unknown user and wrong password, so usernames can't be probed
     const admin = await Admin.findOne({ username });
     if (!admin) {
-      return res.status(401).json({ message: "Invalid email" });
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
     // Check password
@@ -30,7 +30,7 @@ router.post("/admin/login", async (req, res) => {
     const payload = {
       user: {
         id: admin._id,
-        email: admin.email,
+        username: admin.username,
         isAdmin: true
       }
     };
@@ -46,8 +46,7 @@ router.post("/admin/login", async (req, res) => {
       token,
       admin: {
         id: admin._id,
-        email: admin.email,
-        name: admin.name
+        username: admin.username
       }
     });
   } catch (error) {
@@ -59,16 +58,16 @@ router.post("/admin/login", async (req, res) => {
 // Create admin (protected route)
 router.post("/admin/create", authMiddleware, async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { username, password } = req.body;
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: "Name, email, and password are required" });
+    if (!username || !password) {
+      return res.status(400).json({ message: "Username and password are required" });
     }
 
     // Check if admin already exists
-    const existingAdmin = await Admin.findOne({ email });
+    const existingAdmin = await Admin.findOne({ username });
     if (existingAdmin) {
-      return res.status(400).json({ message: "Admin with this email already exists" });
+      return res.status(400).json({ message: "Admin with this username already exists" });
     }
 
     // Hash password
@@ -77,9 +76,8 @@ router.post("/admin/create", authMiddleware, async (req, res) => {
 
     // Create new admin
     const newAdmin = new Admin({
-      name,
-      email,
-      password: hashedPassword
+      username,
+      passwordHash: hashedPassword
     });
 
     await newAdmin.save();
@@ -88,8 +86,7 @@ router.post("/admin/create", authMiddleware, async (req, res) => {
       message: "Admin created successfully",
       admin: {
         id: newAdmin._id,
-        name: newAdmin.name,
-        email: newAdmin.email
+        username: newAdmin.username
       }
     });
   } catch (error) {
@@ -101,7 +98,10 @@ router.post("/admin/create", authMiddleware, async (req, res) => {
 // Get admin profile (protected route)
 router.get("/admin/profile", authMiddleware, async (req, res) => {
   try {
-    const admin = await Admin.findById(req.user.id).select("-password");
+    const admin = await Admin.findById(req.user.id).select("-passwordHash");
+    if (!admin) {
+      return res.status(401).json({ message: "Admin account no longer exists" });
+    }
     res.json({ admin });
   } catch (error) {
     console.error("Get admin profile error:", error);
@@ -122,7 +122,7 @@ router.post("/admin/init", async (req, res) => {
     const defaultUsername = process.env.ADMIN_USERNAME || "admin";
     const defaultPassword = process.env.ADMIN_PASSWORD || "admin123";
 
-    console.log("Creating default admin with username:", defaultUsername, "and password:", defaultPassword);
+    console.log("Creating default admin with username:", defaultUsername);
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(defaultPassword, salt);
