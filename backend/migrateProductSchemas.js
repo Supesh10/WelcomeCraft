@@ -9,7 +9,7 @@
 // admin can finish them (e.g. gold products need a goldFinish).
 //
 // Usage: node migrateProductSchemas.js [--dry-run]
-
+require("dns").setServers(["8.8.8.8", "1.1.1.1"]);
 require("dotenv").config();
 const mongoose = require("mongoose");
 const Category = require("./src/Model/categoryModel");
