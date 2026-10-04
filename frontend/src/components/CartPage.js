@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ShoppingCart, Plus, Minus, Trash2, Edit, Package, CreditCard, ArrowLeft, Info } from "lucide-react";
 import ApiService from "../services/apiService";
-import { fallbackToPlaceholder, formatRs, isSilver, productImage, variantLabel } from "../lib/productDisplay";
+import { fallbackToPlaceholder, formatRs, isCustomSilver, isSilver, productImage, variantLabel } from "../lib/productDisplay";
+import { CustomPieceFields, estimateCustomPrice, specToValues, validateCustomPiece, valuesToSpec } from "./CustomPieceForm";
 
 // Lines describing a custom silver specification
 export function specSummary(spec) {
@@ -28,6 +29,9 @@ const CartPage = () => {
   const [notices, setNotices] = useState([]);
   const [editingItem, setEditingItem] = useState(null);
   const [noteText, setNoteText] = useState("");
+  // Custom piece being edited: { itemId, values, errors, saving, error }
+  const [specEdit, setSpecEdit] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const sessionId = ApiService.getSessionId();
 
@@ -85,6 +89,43 @@ const CartPage = () => {
       setEditingItem(null);
       setNoteText("");
     });
+
+  const startSpecEdit = (item) =>
+    setSpecEdit({ itemId: item._id, values: specToValues(item.customSpecification), errors: {}, error: "", saving: false });
+
+  // Checkout links here with ?edit=<itemId> to open that item's editor
+  const editParam = searchParams.get("edit");
+  useEffect(() => {
+    if (!editParam || !cart) return;
+    const item = cart.items.find((i) => i._id === editParam && isCustomSilver(i.product));
+    if (item) {
+      startSpecEdit(item);
+      setTimeout(() => document.getElementById(`item-${item._id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+    }
+    searchParams.delete("edit");
+    setSearchParams(searchParams, { replace: true });
+  }, [editParam, cart]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setSpecField = (field, value) =>
+    setSpecEdit((e) => ({ ...e, values: { ...e.values, [field]: value }, errors: { ...e.errors, [field]: undefined }, error: "" }));
+
+  const saveSpec = async (item) => {
+    const errors = validateCustomPiece(item.product, specEdit.values);
+    if (Object.keys(errors).length) {
+      setSpecEdit((e) => ({ ...e, errors }));
+      return;
+    }
+    setSpecEdit((e) => ({ ...e, saving: true, error: "" }));
+    try {
+      const res = await ApiService.updateCartItem(sessionId, item._id, { customSpecification: valuesToSpec(specEdit.values) });
+      setCart(res.cart);
+      setSpecEdit(null);
+      setNotices([`Updated the details for ${item.product.title}.`]);
+    } catch (err) {
+      const details = Array.isArray(err.details) ? `: ${err.details.join(", ")}` : "";
+      setSpecEdit((e) => ({ ...e, saving: false, error: `${err.message || "Couldn't save the changes"}${details}` }));
+    }
+  };
 
   const clearCart = async () => {
     if (!window.confirm("Remove all items from your cart?")) return;
@@ -212,7 +253,7 @@ const CartPage = () => {
               const busy = updating[item._id];
               const specLines = specSummary(item.customSpecification);
               return (
-                <div key={item._id} className={`card ${busy ? "opacity-60" : ""}`}>
+                <div key={item._id} id={`item-${item._id}`} className={`card ${busy ? "opacity-60" : ""}`}>
                   <div className="card-body">
                     <div className="flex flex-col sm:flex-row gap-4">
                       <Link to={`/product/${p._id}`} className="w-full sm:w-32 h-40 sm:h-32 flex-shrink-0">
@@ -244,13 +285,56 @@ const CartPage = () => {
                           </button>
                         </div>
 
-                        {specLines.length > 0 && (
-                          <div className="bg-gray-50 p-3 rounded text-sm space-y-0.5" style={{ color: "var(--dark-gray)" }}>
-                            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Custom order</p>
-                            {specLines.map((line) => (
-                              <p key={line}>{line}</p>
-                            ))}
+                        {specEdit?.itemId === item._id ? (
+                          <div className="border rounded p-3 sm:p-4 space-y-4 bg-white">
+                            <p className="text-xs text-gray-500 uppercase tracking-wide">Edit custom piece</p>
+                            <CustomPieceFields
+                              product={p}
+                              values={specEdit.values}
+                              errors={specEdit.errors}
+                              onChange={setSpecField}
+                              idPrefix={`item-${item._id}`}
+                            />
+                            {(() => {
+                              const estimate = estimateCustomPrice(p, specEdit.values, item.silverPriceSnapshot);
+                              return (
+                                estimate != null && (
+                                  <p className="text-sm" style={{ color: "var(--stone-gray)" }}>
+                                    New price: <strong style={{ color: "var(--saffron)" }}>{formatRs(estimate)}</strong> each
+                                    {estimate !== item.priceSnapshot && ` (was ${formatRs(item.priceSnapshot)})`}
+                                  </p>
+                                )
+                              );
+                            })()}
+                            {specEdit.error && <p className="text-sm text-red-600">{specEdit.error}</p>}
+                            <div className="flex gap-2">
+                              <button onClick={() => saveSpec(item)} disabled={specEdit.saving} className="btn btn-primary btn-sm">
+                                {specEdit.saving ? "Saving..." : "Save details"}
+                              </button>
+                              <button onClick={() => setSpecEdit(null)} disabled={specEdit.saving} className="btn btn-secondary btn-sm">
+                                Cancel
+                              </button>
+                            </div>
                           </div>
+                        ) : (
+                          specLines.length > 0 && (
+                            <div className="bg-gray-50 p-3 rounded text-sm space-y-0.5" style={{ color: "var(--dark-gray)" }}>
+                              <div className="flex items-start justify-between gap-2 mb-1">
+                                <p className="text-xs text-gray-500 uppercase tracking-wide">Custom order</p>
+                                <button
+                                  onClick={() => startSpecEdit(item)}
+                                  className="text-xs flex items-center gap-1 hover:underline"
+                                  style={{ color: "var(--saffron)" }}
+                                >
+                                  <Edit size={12} />
+                                  Edit details
+                                </button>
+                              </div>
+                              {specLines.map((line) => (
+                                <p key={line}>{line}</p>
+                              ))}
+                            </div>
+                          )
                         )}
 
                         {editingItem === item._id ? (

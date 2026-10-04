@@ -16,7 +16,13 @@ import {
 } from "lucide-react";
 import ApiService from "../services/apiService";
 import {
-  DAY_MS,
+  CustomPieceFields,
+  EMPTY_SPEC,
+  estimateCustomPrice,
+  validateCustomPiece,
+  valuesToSpec,
+} from "./CustomPieceForm";
+import {
   fallbackToPlaceholder,
   formatRs,
   isCustomSilver,
@@ -33,18 +39,6 @@ const WHATSAPP_PHONE = (
   process.env.REACT_APP_WHATSAPP_NUMBER ||
   ""
 ).replace(/[^\d]/g, "");
-
-const EMPTY_SPEC = {
-  preferredWeight: "",
-  height: "",
-  width: "",
-  length: "",
-  unit: "inch",
-  design: "",
-  designNotes: "",
-  requiredBy: "",
-};
-const OTHER_DESIGN = "__other__";
 
 const SpecRow = ({ name, value }) =>
   value == null || value === "" ? null : (
@@ -70,7 +64,8 @@ const SingleProductPage = () => {
   const [selectedImage, setSelectedImage] = useState(0);
   const [spec, setSpec] = useState(EMPTY_SPEC);
   const [specErrors, setSpecErrors] = useState({});
-  const [designChoice, setDesignChoice] = useState("");
+  // Bumped to reset the custom form (and its design dropdown)
+  const [specFormKey, setSpecFormKey] = useState(0);
 
   const sessionId = ApiService.getSessionId();
 
@@ -87,7 +82,7 @@ const SingleProductPage = () => {
         const { product: data } = await ApiService.getProductById(id);
         if (cancelled) return;
         setProduct(data);
-        setDesignChoice("");
+        setSpecFormKey((k) => k + 1);
 
         const categoryId = data.category?._id;
         if (categoryId) {
@@ -112,68 +107,28 @@ const SingleProductPage = () => {
   const custom = isCustomSilver(product);
   const images = productImages(product);
   const options = product?.customOptions || {};
-  const designOptions = options.designOptions || [];
-  const allowCustomDesign = options.allowCustomDesign !== false;
   const silverRate = product?.pricing?.silverRate;
 
   // Unit price: fixed / stock silver from the API, custom silver from the chosen weight
   const unitPrice = useMemo(() => {
     if (!product) return null;
-    if (custom) {
-      const weight = Number(spec.preferredWeight);
-      if (!silverRate || !weight) return null;
-      return silverRate * weight + (product.makingCost || 0);
-    }
+    if (custom) return estimateCustomPrice(product, spec, silverRate);
     return product.pricing?.price ?? product.constantPrice ?? null;
-  }, [product, custom, spec.preferredWeight, silverRate]);
+  }, [product, custom, spec, silverRate]);
 
-  const setSpecField = (field) => (e) => {
-    const value = e.target.value;
+  const setSpecField = (field, value) => {
     setSpec((s) => ({ ...s, [field]: value }));
     setSpecErrors((er) => ({ ...er, [field]: undefined }));
   };
 
-  // Mirrors the backend's checks so the customer sees problems right away
   function validateSpec() {
     if (!custom) return true;
-    const e = {};
-    const { min, max } = product.weightRange || {};
-    const w = Number(spec.preferredWeight);
-    if (spec.preferredWeight === "") e.preferredWeight = "Please choose a weight";
-    else if (Number.isNaN(w) || w < min || w > max) e.preferredWeight = `Weight must be between ${min} and ${max} tola`;
-
-    const { minHeight, maxHeight, unit } = options.sizeRange || {};
-    const h = Number(spec.height);
-    if (spec.height !== "" && ((minHeight != null && h < minHeight) || (maxHeight != null && h > maxHeight)))
-      e.height = `Height must be between ${minHeight ?? 0} and ${maxHeight ?? "any"} ${unit || "inch"}`;
-
-    if (!allowCustomDesign && designOptions.length && !designOptions.includes(spec.design)) e.design = "Please choose a design";
-    if (!spec.design && !spec.designNotes && (allowCustomDesign || !designOptions.length))
-      e.design = "Please choose or describe the design you want";
-
-    const minDays = options.productionTime?.minDays;
-    if (spec.requiredBy && minDays != null && new Date(spec.requiredBy).getTime() < Date.now() + minDays * DAY_MS)
-      e.requiredBy = `We need at least ${minDays} days to make this piece`;
-
+    const e = validateCustomPiece(product, spec);
     setSpecErrors(e);
     return Object.keys(e).length === 0;
   }
 
-  const buildSpec = () =>
-    custom
-      ? {
-          preferredWeight: Number(spec.preferredWeight),
-          size: {
-            height: spec.height || undefined,
-            width: spec.width || undefined,
-            length: spec.length || undefined,
-            unit: spec.unit,
-          },
-          design: spec.design.trim() || undefined,
-          designNotes: spec.designNotes.trim() || undefined,
-          requiredBy: spec.requiredBy || undefined,
-        }
-      : undefined;
+  const buildSpec = () => (custom ? valuesToSpec(spec) : undefined);
 
   async function addToCart() {
     setError("");
@@ -198,7 +153,10 @@ const SingleProductPage = () => {
   const handleAddToCart = async () => {
     if (await addToCart()) {
       setSuccess(custom ? "Your custom order was added to the cart." : "Added to cart.");
-      if (custom) setSpec(EMPTY_SPEC);
+      if (custom) {
+        setSpec(EMPTY_SPEC);
+        setSpecFormKey((k) => k + 1);
+      }
       setTimeout(() => setSuccess(""), 3000);
     }
   };
@@ -472,111 +430,13 @@ const SingleProductPage = () => {
                   )}
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--dark-gray)" }}>
-                    Weight (tola) *
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    min={product.weightRange?.min}
-                    max={product.weightRange?.max}
-                    value={spec.preferredWeight}
-                    onChange={setSpecField("preferredWeight")}
-                    placeholder={`${product.weightRange?.min} to ${product.weightRange?.max}`}
-                    className={`input-field w-full ${specErrors.preferredWeight ? "border-red-500" : ""}`}
-                  />
-                  {specErrors.preferredWeight && <p className="text-red-600 text-xs mt-1">{specErrors.preferredWeight}</p>}
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {["height", "width", "length"].map((f) => (
-                    <div key={f}>
-                      <label className="block text-sm font-medium mb-1 capitalize" style={{ color: "var(--dark-gray)" }}>
-                        {f}
-                      </label>
-                      <input
-                        type="number"
-                        step="any"
-                        min={0}
-                        value={spec[f]}
-                        onChange={setSpecField(f)}
-                        className={`input-field w-full ${specErrors[f] ? "border-red-500" : ""}`}
-                      />
-                    </div>
-                  ))}
-                  <div>
-                    <label className="block text-sm font-medium mb-1" style={{ color: "var(--dark-gray)" }}>
-                      Unit
-                    </label>
-                    <select value={spec.unit} onChange={setSpecField("unit")} className="input-field w-full">
-                      <option value="inch">inch</option>
-                      <option value="cm">cm</option>
-                    </select>
-                  </div>
-                </div>
-                {specErrors.height && <p className="text-red-600 text-xs -mt-2">{specErrors.height}</p>}
-
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--dark-gray)" }}>
-                    Design *
-                  </label>
-                  {designOptions.length > 0 && (
-                    <select
-                      value={designChoice}
-                      onChange={(e) => {
-                        setDesignChoice(e.target.value);
-                        setSpec((s) => ({ ...s, design: e.target.value === OTHER_DESIGN ? "" : e.target.value }));
-                        setSpecErrors((er) => ({ ...er, design: undefined }));
-                      }}
-                      className={`input-field w-full ${specErrors.design ? "border-red-500" : ""}`}
-                    >
-                      <option value="">Choose a design</option>
-                      {designOptions.map((d) => (
-                        <option key={d} value={d}>
-                          {d}
-                        </option>
-                      ))}
-                      {allowCustomDesign && <option value={OTHER_DESIGN}>My own design (describe it)</option>}
-                    </select>
-                  )}
-                  {(designChoice === OTHER_DESIGN || designOptions.length === 0) && (
-                    <input
-                      value={spec.design}
-                      onChange={setSpecField("design")}
-                      placeholder="e.g. Medicine Buddha seated on a lotus"
-                      className={`input-field w-full mt-2 ${specErrors.design ? "border-red-500" : ""}`}
-                    />
-                  )}
-                  {specErrors.design && <p className="text-red-600 text-xs mt-1">{specErrors.design}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--dark-gray)" }}>
-                    Details for the craftsman (optional)
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={spec.designNotes}
-                    onChange={setSpecField("designNotes")}
-                    placeholder="Pose, ornaments, finish, engraving..."
-                    className="input-field w-full resize-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--dark-gray)" }}>
-                    Needed by (optional)
-                  </label>
-                  <input
-                    type="date"
-                    value={spec.requiredBy}
-                    onChange={setSpecField("requiredBy")}
-                    min={new Date(Date.now() + (time?.minDays || 0) * DAY_MS).toISOString().slice(0, 10)}
-                    className={`input-field w-full ${specErrors.requiredBy ? "border-red-500" : ""}`}
-                  />
-                  {specErrors.requiredBy && <p className="text-red-600 text-xs mt-1">{specErrors.requiredBy}</p>}
-                </div>
+                <CustomPieceFields
+                  key={`${product._id}-${specFormKey}`}
+                  product={product}
+                  values={spec}
+                  errors={specErrors}
+                  onChange={setSpecField}
+                />
               </div>
             )}
 

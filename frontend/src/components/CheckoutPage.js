@@ -309,6 +309,11 @@ const CheckoutPage = () => {
                               {line}
                             </p>
                           ))}
+                        {item.customSpecification?.preferredWeight != null && (
+                          <Link to={`/cart?edit=${item._id}`} className="text-xs underline" style={{ color: "var(--saffron)" }}>
+                            Edit details
+                          </Link>
+                        )}
                         <div className="flex justify-between items-center mt-1">
                           <span className="text-xs" style={{ color: "var(--stone-gray)" }}>
                             Qty: {item.quantity}
