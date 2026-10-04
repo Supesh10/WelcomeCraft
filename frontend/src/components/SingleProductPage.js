@@ -15,6 +15,7 @@ import {
   Clock,
 } from "lucide-react";
 import ApiService from "../services/apiService";
+import { SHOP } from "../lib/shopInfo";
 import {
   CustomPieceFields,
   EMPTY_SPEC,
@@ -34,11 +35,7 @@ import {
   variantLabel,
 } from "../lib/productDisplay";
 
-const WHATSAPP_PHONE = (
-  process.env.REACT_APP_WHATSAPP_PHONE ||
-  process.env.REACT_APP_WHATSAPP_NUMBER ||
-  ""
-).replace(/[^\d]/g, "");
+const WHATSAPP_PHONE = SHOP.whatsapp;
 
 const SpecRow = ({ name, value }) =>
   value == null || value === "" ? null : (

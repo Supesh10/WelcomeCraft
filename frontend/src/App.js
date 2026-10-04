@@ -5,6 +5,7 @@ import CartPage from './components/CartPage';
 import CheckoutPage from './components/CheckoutPage';
 import SingleProductPage from './components/SingleProductPage';
 import AboutUsPage from './components/AboutUsPage';
+import ContactPage from './components/ContactPage';
 import AdminLogin from './components/admin/AdminLogin';
 import AdminDashboard from './components/admin/AdminDashboard';
 import Navbar from './components/Navbar';
@@ -66,7 +67,7 @@ function AppWrapper() {
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/about" element={<AboutUsPage />} />
-          <Route path="/contact" element={<AboutUsPage />} />
+          <Route path="/contact" element={<ContactPage />} />
         </Routes>
       </main>
       <Footer />
