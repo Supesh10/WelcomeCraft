@@ -39,11 +39,23 @@ const ProductsPage = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalProducts, setTotalProducts] = useState(0);
   const productsPerPage = 12;
+  // Search actually applied to the list (the box can hold unsubmitted text)
+  const searchParam = searchParams.get("search") || "";
+  const [appliedSearch, setAppliedSearch] = useState(searchParam);
+  // Bumped by "Apply" so the price filter refetches
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Searching from the navbar changes ?search= while this page is open
+  useEffect(() => {
+    setSearchTerm(searchParam);
+    setAppliedSearch(searchParam);
+    setCurrentPage(1);
+  }, [searchParam]);
 
   // Fetch data on component mount and when filters change
   useEffect(() => {
     fetchData();
-  }, [selectedCategory, sortBy, currentPage]);
+  }, [selectedCategory, sortBy, currentPage, appliedSearch, refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetchCategories();
@@ -58,7 +70,7 @@ const ProductsPage = () => {
         page: currentPage,
         limit: productsPerPage,
         sort: sortBy,
-        search: searchTerm.trim(),
+        search: appliedSearch.trim(),
         category: selectedCategory,
         minPrice: priceRange.min,
         maxPrice: priceRange.max,
@@ -142,12 +154,14 @@ const ProductsPage = () => {
   const handleSearch = (e) => {
     e.preventDefault();
     setCurrentPage(1);
-    fetchData();
+    setAppliedSearch(searchTerm);
+    setRefreshKey((k) => k + 1);
   };
 
   const clearFilters = () => {
     setSelectedCategory("");
     setSearchTerm("");
+    setAppliedSearch("");
     setPriceRange({ min: "", max: "" });
     setCurrentPage(1);
     searchParams.delete("categoryName");

@@ -2,28 +2,11 @@
  * Home page styles, taken from the Figma prototype: deep maroon, crimson,
  * marigold and antique gold on cream and charcoal, Playfair Display headings
  * with gold italics, Plus Jakarta Sans for everything else.
- * Scoped to .wc-home so other pages keep their current look for now.
+ * Colours, fonts, eyebrows and buttons are shared in brand.css.
  */
 
 .wc-home {
-  --wc-maroon: #430a12;
-  --wc-maroon-soft: #5c1c24;
-  --wc-crimson: #890d20;
-  --wc-marigold: #f8d058;
-  --wc-gold: #e5c158;
-  --wc-gold-deep: #765c00;
-  --wc-gold-text: #8a6d12;
-  --wc-charcoal: #201c1c;
-  --wc-charcoal-soft: #343030;
-  --wc-cream: #ecdcc0;
-  --wc-cream-light: #f0e4d0;
-  --wc-paper: #f0e8dc;
-  --wc-ink: #2a1a17;
-  --wc-ink-muted: #6b5a52;
-  --wc-on-dark: #f0e8dc;
-  --wc-on-dark-muted: rgba(240, 232, 220, 0.72);
-
-  font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--wc-font-sans);
   color: var(--wc-ink);
   background-color: var(--wc-paper);
 }
@@ -32,7 +15,7 @@
 .wc-home h2,
 .wc-home h3,
 .wc-home .wc-serif {
-  font-family: "Playfair Display", Georgia, serif;
+  font-family: var(--wc-font-serif);
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--wc-maroon);
@@ -44,20 +27,10 @@
 .wc-home .wc-product-link {
   color: inherit;
 }
-
-/* Small uppercase label above section titles */
-.wc-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--wc-gold-text);
-}
-.wc-on-dark .wc-eyebrow {
-  color: var(--wc-gold);
+.wc-home .wc-category-card:hover,
+.wc-home .wc-product-link:hover,
+.wc-home .wc-icon-btn:hover {
+  text-decoration: none;
 }
 
 /* Italic accent words in headings: gold on dark, crimson on cream */
@@ -68,62 +41,6 @@
 .wc-home .wc-hero .wc-accent,
 .wc-home .wc-dark .wc-accent {
   color: var(--wc-gold);
-}
-
-/* Buttons */
-.wc-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.85rem 1.5rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  border-radius: 4px;
-  border: 1px solid transparent;
-  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
-  cursor: pointer;
-}
-.wc-btn:focus-visible {
-  outline: 2px solid var(--wc-marigold);
-  outline-offset: 2px;
-}
-.wc-btn-primary {
-  background-color: var(--wc-maroon);
-  color: var(--wc-marigold);
-}
-.wc-btn-primary:hover {
-  background-color: var(--wc-crimson);
-}
-.wc-btn-ghost {
-  background-color: rgba(240, 232, 220, 0.12);
-  color: var(--wc-on-dark);
-  border-color: rgba(240, 232, 220, 0.2);
-  backdrop-filter: blur(4px);
-}
-.wc-btn-ghost:hover {
-  background-color: rgba(240, 232, 220, 0.2);
-}
-.wc-btn-outline {
-  background-color: transparent;
-  color: var(--wc-maroon);
-  border-color: var(--wc-maroon);
-}
-.wc-btn-outline:hover {
-  background-color: var(--wc-maroon);
-  color: var(--wc-marigold);
-}
-.wc-btn-gold {
-  background-color: var(--wc-gold-deep);
-  color: #fff8e1;
-}
-.wc-btn-gold:hover {
-  background-color: #8c6e00;
-}
-.wc-btn-sm {
-  padding: 0.55rem 0.9rem;
 }
 
 /* Hero */
@@ -169,7 +86,7 @@
   color: var(--wc-gold);
 }
 .wc-price-card .wc-price-value {
-  font-family: "Playfair Display", Georgia, serif;
+  font-family: var(--wc-font-serif);
   font-size: 1.35rem;
   font-weight: 600;
 }
@@ -279,7 +196,7 @@
   color: var(--wc-ink);
 }
 .wc-product-card .wc-product-price {
-  font-family: "Playfair Display", Georgia, serif;
+  font-family: var(--wc-font-serif);
   font-weight: 700;
   font-size: 1.15rem;
   color: var(--wc-ink);
@@ -352,7 +269,7 @@
   padding: 1.75rem;
 }
 .wc-step-number {
-  font-family: "Playfair Display", Georgia, serif;
+  font-family: var(--wc-font-serif);
   font-size: 1.75rem;
   color: var(--wc-gold);
 }
