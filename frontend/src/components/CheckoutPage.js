@@ -1,23 +1,44 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShoppingCart, User, Phone, Mail, MapPin, MessageCircle, ArrowLeft, CheckCircle, AlertCircle, Lock, Edit, Package } from "lucide-react";
+import {
+  ShoppingCart,
+  User,
+  Phone,
+  Mail,
+  MapPin,
+  MessageCircle,
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  AlertCircle,
+  Lock,
+  Edit,
+  Package,
+  StickyNote,
+} from "lucide-react";
 import ApiService from "../services/apiService";
 import { fallbackToPlaceholder, formatRs, isSilver, productImage } from "../lib/productDisplay";
 import { specSummary } from "./CartPage";
+import CheckoutSteps from "./shop/CheckoutSteps";
+import "../styles/cart.css";
 
 const EMPTY_INFO = { name: "", phone: "", email: "", address: "", orderNotes: "" };
 
-function Field({ label, error, icon: Icon, children }) {
+function Field({ id, label, optional, error, icon: Icon, children }) {
   return (
     <div>
-      <label className="block text-sm font-medium mb-2" style={{ color: "var(--dark-gray)" }}>
-        {label}
+      <label htmlFor={id} className="wc-field-label">
+        {label} {optional ? <span className="wc-optional">(optional)</span> : <span aria-hidden="true">*</span>}
       </label>
       <div className="relative">
         {children}
-        {Icon && <Icon size={16} className="absolute left-3 top-3 text-gray-400 pointer-events-none" />}
+        {Icon && <Icon size={16} className="wc-field-icon" aria-hidden="true" />}
       </div>
-      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+      {error && (
+        <p id={`${id}-error`} className="wc-field-error">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -99,10 +120,13 @@ const CheckoutPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="spinner mb-4"></div>
-          <p style={{ color: "var(--stone-gray)" }}>Loading checkout...</p>
+      <div className="wc-page wc-light-page min-h-screen">
+        <div className="container mx-auto px-4 sm:px-6 py-10 grid lg:grid-cols-3 gap-8" aria-busy="true" aria-label="Loading checkout">
+          <div className="lg:col-span-2 space-y-4">
+            <div className="wc-skeleton h-10 w-1/3" />
+            <div className="wc-skeleton h-96" />
+          </div>
+          <div className="wc-skeleton h-80" />
         </div>
       </div>
     );
@@ -111,34 +135,45 @@ const CheckoutPage = () => {
   if (placedOrder) {
     const refs = (placedOrder.orderSummary?.orderIds || []).map((id) => String(id).slice(-6).toUpperCase());
     return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: "var(--cream)" }}>
-        <div className="text-center max-w-md mx-auto p-6">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-100 flex items-center justify-center">
-            <CheckCircle size={40} className="text-green-600" />
+      <div className="wc-page wc-light-page min-h-screen px-4 py-12 lg:py-16">
+        <div className="max-w-lg mx-auto">
+          <div className="flex justify-center mb-8">
+            <CheckoutSteps current={3} />
           </div>
-          <h1 className="text-3xl font-display font-bold mb-4" style={{ color: "var(--dark-gray)" }}>
-            Order Received!
-          </h1>
-          <p className="mb-2" style={{ color: "var(--stone-gray)" }}>
-            Thank you, {placedOrder.orderSummary?.customerName}. We'll contact you on {placedOrder.orderSummary?.customerPhone} to
-            confirm availability, the final price and delivery.
-          </p>
-          {refs.length > 0 && (
-            <p className="mb-6 text-sm" style={{ color: "var(--stone-gray)" }}>
-              Order reference: <strong>{refs.join(", ")}</strong>
+          <div className="wc-summary text-center">
+            <div className="wc-state-icon wc-success">
+              <Check size={34} strokeWidth={2.5} />
+            </div>
+            <span className="wc-eyebrow">Order received</span>
+            <h1 className="text-3xl sm:text-4xl mt-2 mb-4">
+              Thank you, <span className="wc-accent">{placedOrder.orderSummary?.customerName}</span>
+            </h1>
+            <p className="mb-5" style={{ color: "var(--wc-ink-muted)" }}>
+              We'll contact you on <strong style={{ color: "var(--wc-ink)" }}>{placedOrder.orderSummary?.customerPhone}</strong> to confirm
+              availability, the final price and delivery.
             </p>
-          )}
-          <div className="space-y-3">
-            {placedOrder.whatsappUrl && (
-              <a href={placedOrder.whatsappUrl} target="_blank" rel="noreferrer" className="btn btn-primary w-full">
-                <MessageCircle size={20} className="mr-2" />
-                Send order details on WhatsApp
-              </a>
+            {refs.length > 0 && (
+              <p className="mb-6 text-sm" style={{ color: "var(--wc-ink-muted)" }}>
+                {refs.length === 1 ? "Order reference" : "Order references"}:{" "}
+                {refs.map((ref) => (
+                  <span key={ref} className="wc-order-ref mx-0.5">
+                    {ref}
+                  </span>
+                ))}
+              </p>
             )}
-            <Link to="/products" className="btn btn-secondary w-full">
-              <Package size={20} className="mr-2" />
-              Continue Shopping
-            </Link>
+            <div className="space-y-3">
+              {placedOrder.whatsappUrl && (
+                <a href={placedOrder.whatsappUrl} target="_blank" rel="noreferrer" className="wc-btn wc-btn-primary w-full">
+                  <MessageCircle size={15} />
+                  Send order details on WhatsApp
+                </a>
+              )}
+              <Link to="/products" className={`wc-btn w-full ${placedOrder.whatsappUrl ? "wc-btn-soft" : "wc-btn-primary"}`}>
+                <Package size={15} />
+                Continue shopping
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -149,19 +184,15 @@ const CheckoutPage = () => {
 
   if (!cart || items.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: "var(--cream)" }}>
-        <div className="text-center max-w-md mx-auto p-6">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gray-100 flex items-center justify-center">
-            <ShoppingCart size={32} style={{ color: "var(--stone-gray)" }} />
-          </div>
-          <h1 className="text-3xl font-display font-bold mb-4" style={{ color: "var(--dark-gray)" }}>
-            {error ? "Something went wrong" : "Your cart is empty"}
-          </h1>
-          <p className="mb-6" style={{ color: "var(--stone-gray)" }}>
-            {error || "Add some items before checking out."}
+      <div className="wc-page wc-light-page min-h-screen flex items-center justify-center px-4 py-20">
+        <div className="text-center max-w-md">
+          <div className="wc-state-icon">{error ? <AlertCircle size={30} /> : <ShoppingCart size={30} />}</div>
+          <h1 className="text-3xl mb-3">{error ? "Something went wrong" : "Your cart is empty"}</h1>
+          <p className="mb-8" style={{ color: "var(--wc-ink-muted)" }}>
+            {error || "Add some pieces to your cart before checking out."}
           </p>
-          <Link to="/products" className="btn btn-primary">
-            Browse Products
+          <Link to="/products" className="wc-btn wc-btn-primary">
+            Browse the collection <ArrowRight size={14} />
           </Link>
         </div>
       </div>
@@ -169,185 +200,198 @@ const CheckoutPage = () => {
   }
 
   const hasSilver = items.some((i) => isSilver(i.product));
+  const inputClass = (field, extra = "") =>
+    `input-field w-full ${extra} ${validationErrors[field] ? "wc-invalid" : ""}`;
+  const describedBy = (field) => (validationErrors[field] ? `checkout-${field}-error` : undefined);
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "var(--cream)" }}>
-      <div className="container mx-auto px-4 sm:px-6 py-8">
-        <div className="flex items-center gap-4 mb-8">
-          <button onClick={() => navigate("/cart")} className="btn btn-secondary btn-sm">
-            <ArrowLeft size={16} />
-            Cart
-          </button>
+    <div className="wc-page wc-light-page min-h-screen">
+      <div className="container mx-auto px-4 sm:px-6 py-8 lg:py-10">
+        <nav aria-label="Breadcrumb" className="wc-crumbs flex flex-wrap items-center gap-2 mb-5">
+          <Link to="/">Home</Link>
+          <span aria-hidden="true">/</span>
+          <Link to="/cart">Cart</Link>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page" style={{ color: "var(--wc-ink)" }}>
+            Checkout
+          </span>
+        </nav>
+
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-display font-bold" style={{ color: "var(--dark-gray)" }}>
-              Checkout
+            <span className="wc-eyebrow">Almost there</span>
+            <h1 className="text-3xl sm:text-4xl mt-2">
+              <span className="wc-accent">Checkout</span>
             </h1>
-            <p className="text-sm" style={{ color: "var(--stone-gray)" }}>
+            <p className="text-sm mt-1" style={{ color: "var(--wc-ink-muted)" }}>
               Tell us where to reach you and deliver
             </p>
           </div>
+          <CheckoutSteps current={2} />
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start gap-3">
-            <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
-            <p className="text-red-600 flex-1">{error}</p>
-            <button onClick={() => setError(null)} className="text-red-500 text-xs underline">
+          <div className="wc-alert wc-alert-error mb-6" role="alert">
+            <AlertCircle size={18} className="flex-shrink-0" />
+            <p className="flex-1">{error}</p>
+            <button type="button" onClick={() => setError(null)} className="text-xs underline">
               Dismiss
             </button>
           </div>
         )}
 
-        <form onSubmit={placeOrder} noValidate className="grid lg:grid-cols-3 gap-8">
+        <form onSubmit={placeOrder} noValidate className="grid lg:grid-cols-3 gap-8 items-start">
           <div className="lg:col-span-2 space-y-6">
-            <div className="card">
-              <div className="card-body space-y-4">
-                <div className="flex items-center gap-3 mb-2">
-                  <User size={24} style={{ color: "var(--saffron)" }} />
-                  <h2 className="text-xl font-semibold" style={{ color: "var(--dark-gray)" }}>
-                    Your details
-                  </h2>
-                </div>
+            <section className="wc-panel space-y-5" style={{ padding: "1.5rem" }}>
+              <h2 className="wc-panel-title">
+                <User size={14} /> Your details
+              </h2>
 
-                <div className="grid md:grid-cols-2 gap-4">
-                  <Field label="Full name *" error={validationErrors.name} icon={User}>
-                    <input
-                      type="text"
-                      autoComplete="name"
-                      value={customerInfo.name}
-                      onChange={handleInputChange("name")}
-                      className={`input-field w-full pl-10 ${validationErrors.name ? "border-red-500" : ""}`}
-                      placeholder="Your full name"
-                    />
-                  </Field>
-                  <Field label="Phone number *" error={validationErrors.phone} icon={Phone}>
-                    <input
-                      type="tel"
-                      autoComplete="tel"
-                      value={customerInfo.phone}
-                      onChange={handleInputChange("phone")}
-                      className={`input-field w-full pl-10 ${validationErrors.phone ? "border-red-500" : ""}`}
-                      placeholder="98XXXXXXXX"
-                    />
-                  </Field>
-                </div>
-
-                <Field label="Email (optional)" error={validationErrors.email} icon={Mail}>
+              <div className="grid md:grid-cols-2 gap-4">
+                <Field id="checkout-name" label="Full name" error={validationErrors.name} icon={User}>
                   <input
-                    type="email"
-                    autoComplete="email"
-                    value={customerInfo.email}
-                    onChange={handleInputChange("email")}
-                    className={`input-field w-full pl-10 ${validationErrors.email ? "border-red-500" : ""}`}
-                    placeholder="you@example.com"
+                    id="checkout-name"
+                    type="text"
+                    autoComplete="name"
+                    value={customerInfo.name}
+                    onChange={handleInputChange("name")}
+                    aria-invalid={!!validationErrors.name}
+                    aria-describedby={describedBy("name")}
+                    className={inputClass("name", "pl-10")}
+                    placeholder="Your full name"
                   />
                 </Field>
-
-                <Field label="Delivery address *" error={validationErrors.address} icon={MapPin}>
-                  <textarea
-                    autoComplete="street-address"
-                    value={customerInfo.address}
-                    onChange={handleInputChange("address")}
-                    rows={3}
-                    className={`input-field w-full pl-10 resize-none ${validationErrors.address ? "border-red-500" : ""}`}
-                    placeholder="Street, city, district"
-                  />
-                </Field>
-
-                <Field label="Special instructions (optional)">
-                  <textarea
-                    value={customerInfo.orderNotes}
-                    onChange={handleInputChange("orderNotes")}
-                    rows={3}
-                    className="input-field w-full resize-none"
-                    placeholder="Delivery times, gift wrapping, anything else"
+                <Field id="checkout-phone" label="Phone number" error={validationErrors.phone} icon={Phone}>
+                  <input
+                    id="checkout-phone"
+                    type="tel"
+                    autoComplete="tel"
+                    value={customerInfo.phone}
+                    onChange={handleInputChange("phone")}
+                    aria-invalid={!!validationErrors.phone}
+                    aria-describedby={describedBy("phone")}
+                    className={inputClass("phone", "pl-10")}
+                    placeholder="98XXXXXXXX"
                   />
                 </Field>
               </div>
-            </div>
 
-            <div className="card">
-              <div className="card-body flex items-start gap-3">
-                <Lock size={20} style={{ color: "var(--saffron)" }} className="flex-shrink-0 mt-1" />
-                <div>
-                  <h3 className="font-medium mb-2" style={{ color: "var(--dark-gray)" }}>
-                    No online payment
-                  </h3>
-                  <p className="text-sm" style={{ color: "var(--stone-gray)" }}>
-                    Your order is sent to our team, who will contact you to confirm the details and final price and arrange payment
-                    and delivery.
-                  </p>
-                </div>
+              <Field id="checkout-email" label="Email" optional error={validationErrors.email} icon={Mail}>
+                <input
+                  id="checkout-email"
+                  type="email"
+                  autoComplete="email"
+                  value={customerInfo.email}
+                  onChange={handleInputChange("email")}
+                  aria-invalid={!!validationErrors.email}
+                  aria-describedby={describedBy("email")}
+                  className={inputClass("email", "pl-10")}
+                  placeholder="you@example.com"
+                />
+              </Field>
+
+              <Field id="checkout-address" label="Delivery address" error={validationErrors.address} icon={MapPin}>
+                <textarea
+                  id="checkout-address"
+                  autoComplete="street-address"
+                  value={customerInfo.address}
+                  onChange={handleInputChange("address")}
+                  rows={3}
+                  aria-invalid={!!validationErrors.address}
+                  aria-describedby={describedBy("address")}
+                  className={inputClass("address", "pl-10 resize-none")}
+                  placeholder="Street, city, district"
+                />
+              </Field>
+
+              <Field id="checkout-notes" label="Special instructions" optional icon={StickyNote}>
+                <textarea
+                  id="checkout-notes"
+                  value={customerInfo.orderNotes}
+                  onChange={handleInputChange("orderNotes")}
+                  rows={3}
+                  className="input-field w-full pl-10 resize-none"
+                  placeholder="Delivery times, gift wrapping, anything else"
+                />
+              </Field>
+            </section>
+
+            <section className="wc-panel flex items-start gap-3">
+              <Lock size={18} className="flex-shrink-0 mt-0.5" style={{ color: "var(--wc-gold-deep)" }} />
+              <div>
+                <h2 className="wc-panel-title mb-1">No online payment</h2>
+                <p className="text-sm" style={{ color: "var(--wc-ink-muted)" }}>
+                  Your order is sent to our team, who will contact you to confirm the details and final price and arrange payment and
+                  delivery.
+                </p>
               </div>
-            </div>
+            </section>
+
+            <button type="button" onClick={() => navigate("/cart")} className="wc-btn wc-btn-outline wc-btn-sm">
+              <ArrowLeft size={14} />
+              Back to cart
+            </button>
           </div>
 
-          <div className="space-y-6">
-            <div className="card lg:sticky lg:top-24">
-              <div className="card-body">
-                <h3 className="font-semibold text-lg mb-4" style={{ color: "var(--dark-gray)" }}>
-                  Order Summary
-                </h3>
+          <aside className="wc-summary lg:sticky lg:top-28">
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <h2 className="wc-panel-title">
+                <Package size={14} /> Order summary
+              </h2>
+              <Link to="/cart" className="wc-text-btn">
+                <Edit size={12} /> Edit cart
+              </Link>
+            </div>
 
-                <div className="space-y-4 mb-6">
-                  {items.map((item) => (
-                    <div key={item._id} className="flex gap-3">
-                      <img
-                        src={productImage(item.product)}
-                        alt={item.product.title}
-                        onError={fallbackToPlaceholder}
-                        className="w-16 h-16 object-cover rounded flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-sm truncate" style={{ color: "var(--dark-gray)" }}>
-                          {item.product.title}
-                        </h4>
-                        {specSummary(item.customSpecification)
-                          .slice(0, 2)
-                          .map((line) => (
-                            <p key={line} className="text-xs" style={{ color: "var(--stone-gray)" }}>
-                              {line}
-                            </p>
-                          ))}
-                        {item.customSpecification?.preferredWeight != null && (
-                          <Link to={`/cart?edit=${item._id}`} className="text-xs underline" style={{ color: "var(--saffron)" }}>
-                            Edit details
-                          </Link>
-                        )}
-                        <div className="flex justify-between items-center mt-1">
-                          <span className="text-xs" style={{ color: "var(--stone-gray)" }}>
-                            Qty: {item.quantity}
-                          </span>
-                          <span className="text-sm font-medium" style={{ color: "var(--saffron)" }}>
-                            {formatRs(item.priceSnapshot * item.quantity)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="border-t pt-4 space-y-2">
-                  <div className="flex justify-between font-bold text-lg">
-                    <span style={{ color: "var(--dark-gray)" }}>Estimated total</span>
-                    <span style={{ color: "var(--saffron)" }}>{formatRs(cart.subtotal)}</span>
+            <ul className="space-y-3 mb-5">
+              {items.map((item) => (
+                <li key={item._id} className="wc-summary-item flex gap-3">
+                  <div className="wc-cart-thumb w-16 h-16">
+                    <img src={productImage(item.product)} alt="" onError={fallbackToPlaceholder} />
                   </div>
-                  <p className="text-xs" style={{ color: "var(--stone-gray)" }}>
-                    {hasSilver ? "Silver prices use today's rate. " : ""}The final price is confirmed when we contact you.
-                  </p>
-                </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm truncate" style={{ color: "var(--wc-ink)" }}>
+                      {item.product.title}
+                    </p>
+                    {specSummary(item.customSpecification)
+                      .slice(0, 2)
+                      .map((line) => (
+                        <p key={line} className="text-xs" style={{ color: "var(--wc-ink-muted)" }}>
+                          {line}
+                        </p>
+                      ))}
+                    {item.customSpecification?.preferredWeight != null && (
+                      <Link to={`/cart?edit=${item._id}`} className="wc-text-btn mt-0.5">
+                        Edit details
+                      </Link>
+                    )}
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="text-xs" style={{ color: "var(--wc-ink-muted)" }}>
+                        Qty {item.quantity}
+                      </span>
+                      <span className="text-sm font-bold" style={{ color: "var(--wc-maroon)" }}>
+                        {formatRs(item.priceSnapshot * item.quantity)}
+                      </span>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
 
-                <button type="submit" disabled={submitting} className="btn btn-primary w-full mt-6">
-                  {submitting ? "Placing order..." : "Place Order"}
-                </button>
-
-                <Link to="/cart" className="btn btn-secondary btn-sm w-full mt-3">
-                  <Edit size={16} className="mr-2" />
-                  Edit Cart
-                </Link>
-              </div>
+            <div className="wc-summary-total">
+              <span className="text-sm font-semibold" style={{ color: "var(--wc-ink)" }}>
+                Estimated total
+              </span>
+              <span className="wc-price-big">{formatRs(cart.subtotal)}</span>
             </div>
-          </div>
+            <p className="text-xs mt-3" style={{ color: "var(--wc-ink-muted)" }}>
+              {hasSilver ? "Silver prices use today's rate. " : ""}The final price is confirmed when we contact you.
+            </p>
+
+            <button type="submit" disabled={submitting} className="wc-btn wc-btn-primary w-full mt-6" style={{ padding: "1rem 1.5rem" }}>
+              {submitting ? "Placing order..." : "Place order"}
+            </button>
+          </aside>
         </form>
       </div>
     </div>

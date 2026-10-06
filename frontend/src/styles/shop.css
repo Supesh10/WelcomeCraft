@@ -219,6 +219,145 @@
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
 }
 
+/* Light ivory pages (product, cart, checkout) */
+.wc-light-page {
+  background-color: var(--wc-ivory);
+}
+.wc-crumbs {
+  font-size: 0.75rem;
+  color: var(--wc-ink-muted);
+}
+.wc-crumbs a,
+.wc-crumbs a:hover {
+  color: var(--wc-ink-muted);
+}
+.wc-crumbs a:hover {
+  color: var(--wc-crimson);
+}
+
+.wc-panel {
+  border-radius: 8px;
+  background-color: var(--wc-stone);
+  padding: 1.25rem;
+}
+.wc-panel-title,
+.wc-page .wc-panel-title {
+  font-family: var(--wc-font-sans);
+  letter-spacing: 0.16em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--wc-maroon);
+}
+.wc-panel-title svg {
+  color: var(--wc-gold-deep);
+}
+/* Form fields inside panels: restyle the shared .input-field */
+.wc-page .wc-panel .input-field {
+  border-color: rgba(67, 10, 18, 0.2);
+  border-radius: 4px;
+  background-color: #fffdf9;
+  font-family: var(--wc-font-sans);
+  font-size: 0.875rem;
+}
+.wc-page .wc-panel .input-field:focus {
+  border-color: var(--wc-crimson);
+  box-shadow: 0 0 0 2px rgba(137, 13, 32, 0.15);
+}
+.wc-page .wc-panel label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--wc-ink) !important;
+}
+
+/* Quantity stepper */
+.wc-stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(67, 10, 18, 0.25);
+  border-radius: 4px;
+  background-color: #fffdf9;
+}
+.wc-stepper button {
+  width: 2.75rem;
+  height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--wc-maroon);
+}
+.wc-stepper button:disabled {
+  opacity: 0.35;
+}
+.wc-stepper span {
+  min-width: 2.5rem;
+  text-align: center;
+  font-weight: 700;
+}
+
+/* Secondary light buttons under the main action */
+.wc-btn-soft {
+  background-color: var(--wc-stone);
+  color: var(--wc-ink);
+}
+.wc-btn-soft.wc-btn-soft:hover {
+  background-color: #e8e1d6;
+  color: var(--wc-ink);
+}
+.wc-btn-soft:disabled,
+.wc-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Reassurance list */
+.wc-guarantee li {
+  display: flex;
+  gap: 0.6rem;
+  font-size: 0.8rem;
+  color: var(--wc-ink-muted);
+}
+.wc-guarantee li svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: var(--wc-gold-deep);
+}
+
+.wc-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+.wc-alert-error {
+  background-color: #fbeaea;
+  color: #8a1c1c;
+  border: 1px solid #f1c8c8;
+}
+.wc-alert-success {
+  background-color: #eef6ea;
+  color: #2f5a1f;
+  border: 1px solid #cfe5c4;
+}
+.wc-alert a {
+  color: inherit;
+  text-decoration: underline;
+  font-weight: 700;
+}
+
+.wc-stepper button:focus-visible {
+  outline: 2px solid var(--wc-crimson);
+  outline-offset: 2px;
+}
+
 /* Loading placeholders */
 .wc-skeleton {
   border-radius: 8px;

@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ShoppingBag,
   MessageCircle,
+  MessagesSquare,
   Truck,
   ShieldCheck,
   Share2,
@@ -106,6 +107,7 @@ const SingleProductPage = () => {
   const [addingToCart, setAddingToCart] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [chatNote, setChatNote] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
   const [spec, setSpec] = useState(EMPTY_SPEC);
@@ -529,25 +531,50 @@ const SingleProductPage = () => {
                 <ShoppingBag size={16} />
                 {addingToCart ? "Adding..." : `Add to cart${unitPrice != null ? ` · ${formatRs(unitPrice * quantity)}` : ""}`}
               </button>
-              <div className={`grid gap-3 ${WHATSAPP_PHONE ? "sm:grid-cols-2" : ""}`}>
-                <button onClick={handleBuyNow} disabled={addingToCart} className="wc-btn wc-btn-soft">
-                  <ArrowRight size={14} />
-                  Buy now
-                </button>
-                {WHATSAPP_PHONE && (
+              <div className="grid grid-cols-2 gap-3">
+                {WHATSAPP_PHONE ? (
                   <a
                     href={`https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(
                       `Hi! I'm interested in "${product.title}" (${window.location.href}). Could you share more details?`
                     )}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="wc-btn wc-btn-soft"
+                    className="wc-btn wc-btn-whatsapp"
+                    aria-label="Chat on WhatsApp"
                   >
-                    <MessageCircle size={14} />
-                    Ask on WhatsApp
+                    <MessageCircle size={15} />
+                    <span className="hidden sm:inline">Chat on</span> WhatsApp
                   </a>
+                ) : (
+                  <button type="button" onClick={() => setChatNote("WhatsApp")} className="wc-btn wc-btn-whatsapp" aria-label="Chat on WhatsApp">
+                    <MessageCircle size={15} />
+                    <span className="hidden sm:inline">Chat on</span> WhatsApp
+                  </button>
                 )}
+                <button type="button" onClick={() => setChatNote("WeChat")} className="wc-btn wc-btn-wechat" aria-label="Chat on WeChat">
+                  <MessagesSquare size={15} />
+                  <span className="hidden sm:inline">Chat on</span> WeChat
+                </button>
               </div>
+              {chatNote && (
+                <p className="text-xs text-center" role="status" style={{ color: "var(--wc-ink-muted)" }}>
+                  {chatNote} chat is coming soon.
+                  {SHOP.phone ? (
+                    <>
+                      {" "}
+                      For now, call us on{" "}
+                      <a href={SHOP.phoneHref} className="font-semibold underline" style={{ color: "var(--wc-crimson)" }}>
+                        {SHOP.phone}
+                      </a>
+                      .
+                    </>
+                  ) : null}
+                </p>
+              )}
+              <button onClick={handleBuyNow} disabled={addingToCart} className="wc-btn wc-btn-soft w-full">
+                <ArrowRight size={14} />
+                Buy now
+              </button>
             </div>
 
             {/* Guarantee */}
