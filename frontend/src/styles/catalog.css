@@ -183,24 +183,3 @@ select.wc-field {
   outline: 2px solid var(--wc-crimson);
   outline-offset: 2px;
 }
-
-/* Loading placeholders */
-.wc-skeleton {
-  border-radius: 8px;
-  background: linear-gradient(90deg, rgba(67, 10, 18, 0.06) 25%, rgba(67, 10, 18, 0.11) 50%, rgba(67, 10, 18, 0.06) 75%);
-  background-size: 200% 100%;
-  animation: wc-shimmer 1.4s ease-in-out infinite;
-}
-@keyframes wc-shimmer {
-  from {
-    background-position: 200% 0;
-  }
-  to {
-    background-position: -200% 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .wc-skeleton {
-    animation: none;
-  }
-}

@@ -13,14 +13,17 @@ import {
 /**
  * Product card in the prototype's style: photo on top (or on the left with
  * layout="row"), marigold or crimson body with meta, title and price.
+ * light: stone-coloured body with the description and an add button
+ * (used for related products).
  */
-export default function ProductTile({ product, onAddToCart, crimson = false, layout = "grid" }) {
+export default function ProductTile({ product, onAddToCart, crimson = false, layout = "grid", light = false }) {
   const url = `/product/${product._id}`;
   const custom = isCustomSilver(product);
   const row = layout === "row";
+  const detailed = row || light;
 
   return (
-    <article className={`wc-product-card group ${crimson ? "wc-crimson" : ""} ${row ? "wc-row" : ""}`}>
+    <article className={`wc-product-card group ${crimson && !light ? "wc-crimson" : ""} ${light ? "wc-light" : ""} ${row ? "wc-row" : ""}`}>
       <div className="wc-product-photo">
         <Link to={url} tabIndex={-1} aria-hidden="true">
           <img src={productImage(product)} onError={fallbackToPlaceholder} alt="" />
@@ -47,11 +50,16 @@ export default function ProductTile({ product, onAddToCart, crimson = false, lay
             {product.title}
           </Link>
         </h3>
-        {row && product.description && <p className="wc-product-desc text-sm mb-4 line-clamp-2">{product.description}</p>}
+        {detailed && product.description && <p className="wc-product-desc text-sm mb-4 line-clamp-2">{product.description}</p>}
         <div className="mt-auto flex items-center justify-between gap-2">
           <span className="wc-product-price">{priceLabel(product)}</span>
-          {row ? (
-            <button type="button" onClick={() => onAddToCart(product)} className="wc-btn wc-btn-primary wc-btn-sm">
+          {detailed ? (
+            <button
+              type="button"
+              onClick={() => onAddToCart(product)}
+              className="wc-btn wc-btn-primary wc-btn-sm"
+              aria-label={custom ? `Customize ${product.title}` : `Add ${product.title} to cart`}
+            >
               {custom ? "Customize" : "Add to cart"}
             </button>
           ) : (
