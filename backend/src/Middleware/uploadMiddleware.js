@@ -26,10 +26,13 @@ const fileFilter = (req, file, cb) => {
   cb(error);
 };
 
+// Most images a product can have, counting ones it already has
+const MAX_PRODUCT_IMAGES = 10;
+
 const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024, files: 10 },
+  limits: { fileSize: 5 * 1024 * 1024, files: MAX_PRODUCT_IMAGES },
 });
 
 // Turns a saved file into the path stored in the database
@@ -41,6 +44,15 @@ const removeUploadedFiles = (req) => {
   files.forEach((f) => fs.unlink(f.path, () => {}));
 };
 
+// Delete images that were stored by this app (paths like /uploads/<file>).
+// Anything else, such as an external URL, is left alone.
+const removeStoredImages = (publicPaths = []) => {
+  publicPaths.forEach((p) => {
+    const match = /^\/uploads\/([^/\\]+)$/.exec(String(p));
+    if (match) fs.unlink(path.join(UPLOAD_DIR, match[1]), () => {});
+  });
+};
+
 // Wrap a multer handler so upload errors return 400 JSON instead of a 500
 // HTML page, and so files from a rejected request don't stay on disk
 const handle = (middleware) => (req, res, next) =>
@@ -50,14 +62,20 @@ const handle = (middleware) => (req, res, next) =>
     });
     if (!err) return next();
     const message =
-      err.code === "LIMIT_FILE_SIZE" ? "Each image must be 5 MB or smaller" : err.message;
+      err.code === "LIMIT_FILE_SIZE"
+        ? "Each image must be 5 MB or smaller"
+        : err.code === "LIMIT_FILE_COUNT" || err.code === "LIMIT_UNEXPECTED_FILE"
+        ? `A product can have at most ${MAX_PRODUCT_IMAGES} images`
+        : err.message;
     res.status(err.status || 400).json({ message });
   });
 
 module.exports = {
   UPLOAD_DIR,
+  MAX_PRODUCT_IMAGES,
   toPublicPath,
   removeUploadedFiles,
-  productImages: handle(upload.array("images", 10)),
+  removeStoredImages,
+  productImages: handle(upload.array("images", MAX_PRODUCT_IMAGES)),
   categoryImage: handle(upload.single("image")),
 };

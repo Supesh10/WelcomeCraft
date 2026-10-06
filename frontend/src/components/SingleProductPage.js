@@ -7,7 +7,6 @@ import {
   MessagesSquare,
   Truck,
   ShieldCheck,
-  Share2,
   Minus,
   Plus,
   AlertCircle,
@@ -19,9 +18,6 @@ import {
   Sparkles,
   Hammer,
   Package,
-  ChevronLeft,
-  ChevronRight,
-  Maximize2,
   ArrowRight,
   BadgeCheck,
 } from "lucide-react";
@@ -35,7 +31,6 @@ import {
   valuesToSpec,
 } from "./CustomPieceForm";
 import {
-  fallbackToPlaceholder,
   formatRs,
   isCustomSilver,
   isSilver,
@@ -46,6 +41,7 @@ import {
   variantLabel,
 } from "../lib/productDisplay";
 import ProductTile from "./shop/ProductTile";
+import ProductGallery from "./shop/ProductGallery";
 import "../styles/product.css";
 
 const WHATSAPP_PHONE = SHOP.whatsapp;
@@ -109,7 +105,6 @@ const SingleProductPage = () => {
   const [success, setSuccess] = useState("");
   const [chatNote, setChatNote] = useState("");
   const [quantity, setQuantity] = useState(1);
-  const [selectedImage, setSelectedImage] = useState(0);
   const [spec, setSpec] = useState(EMPTY_SPEC);
   const [specErrors, setSpecErrors] = useState({});
   // Bumped to reset the custom form (and its design dropdown)
@@ -122,7 +117,6 @@ const SingleProductPage = () => {
     async function load() {
       setLoading(true);
       setError("");
-      setSelectedImage(0);
       setQuantity(1);
       setSpec(EMPTY_SPEC);
       setSpecErrors({});
@@ -292,12 +286,9 @@ const SingleProductPage = () => {
   const dimensionText = [dims.height && `H ${dims.height}`, dims.width && `W ${dims.width}`, dims.length && `L ${dims.length}`]
     .filter(Boolean)
     .join(" × ");
-  const mainImage = images[selectedImage] || productImage(product);
   const time = options.productionTime;
   const tiles = summaryTiles(product);
   const priceBadge = custom ? "Made to order" : isSilver(product) ? "Live silver price" : "Fixed price";
-  const imageCount = images.length;
-  const showImage = (i) => setSelectedImage((i + imageCount) % imageCount);
 
   return (
     <div className="wc-page wc-pd min-h-screen">
@@ -341,46 +332,16 @@ const SingleProductPage = () => {
 
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-start">
           {/* Gallery */}
-          <div className="space-y-3 lg:sticky lg:top-28">
-            <div className="wc-gallery-main">
-              <img src={mainImage} alt={product.title} onError={fallbackToPlaceholder} />
-              {product.category?.name && <span className="wc-gallery-chip">{product.category.name}</span>}
-              {isSilver(product) && <span className="wc-gallery-badge">{custom ? "Made to order" : "Live price"}</span>}
-              {imageCount > 1 && (
-                <>
-                  <button type="button" className="wc-gallery-nav left-3" onClick={() => showImage(selectedImage - 1)} aria-label="Previous image">
-                    <ChevronLeft size={18} />
-                  </button>
-                  <button type="button" className="wc-gallery-nav right-3" onClick={() => showImage(selectedImage + 1)} aria-label="Next image">
-                    <ChevronRight size={18} />
-                  </button>
-                </>
-              )}
-              {images[selectedImage] && (
-                <a href={mainImage} target="_blank" rel="noreferrer" className="wc-gallery-tool left-4">
-                  <Maximize2 size={13} /> Full size
-                </a>
-              )}
-              <button type="button" onClick={handleShare} className="wc-gallery-tool right-4">
-                <Share2 size={13} /> Share
-              </button>
-            </div>
-            {imageCount > 1 && (
-              <div className="grid grid-cols-5 gap-2">
-                {images.map((src, index) => (
-                  <button
-                    key={src}
-                    type="button"
-                    onClick={() => setSelectedImage(index)}
-                    aria-label={`Show image ${index + 1} of ${imageCount}`}
-                    aria-current={selectedImage === index ? "true" : undefined}
-                    className="wc-thumb"
-                  >
-                    <img src={src} alt="" onError={fallbackToPlaceholder} />
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="lg:sticky lg:top-28">
+            <ProductGallery
+              key={product._id}
+              images={images.length ? images : [productImage(product)]}
+              canZoom={images.length > 0}
+              title={product.title}
+              chip={product.category?.name}
+              badge={isSilver(product) ? (custom ? "Made to order" : "Live price") : null}
+              onShare={handleShare}
+            />
           </div>
 
           {/* Details */}

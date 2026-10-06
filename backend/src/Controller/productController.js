@@ -3,7 +3,7 @@ const { PRODUCT_MODELS } = require("../Model/productModel");
 const Category = require("../Model/categoryModel");
 const { PRODUCT_TYPE_BY_MATERIAL } = require("../Config/productTypes");
 const { getLatestSilverRate, withPricing } = require("../Services/pricingService");
-const { toPublicPath } = require("../Middleware/uploadMiddleware");
+const { MAX_PRODUCT_IMAGES, toPublicPath, removeStoredImages } = require("../Middleware/uploadMiddleware");
 
 // Multipart forms send nested objects either as `a[b]` fields (parsed by
 // multer) or as JSON strings. Accept both.
@@ -116,13 +116,59 @@ async function resolveCategory(categoryId) {
   return { category, productType };
 }
 
+// Work out a product's image list from the request.
+// `imageOrder` (JSON array) lists the final images in order: an existing
+// image by its path, or "new:<n>" for the n-th uploaded file. Existing images
+// left out are removed, and uploads it doesn't mention go at the end.
+// Without `imageOrder`, uploads are added after the existing images, or
+// replace them when replaceImages=true.
+function resolveImages(body, existing, uploaded) {
+  let images;
+  if (body.imageOrder !== undefined) {
+    const order = parseObject(body.imageOrder);
+    if (!Array.isArray(order)) return { error: "imageOrder must be a JSON array" };
+    const used = new Set();
+    images = [];
+    for (const entry of order) {
+      const ref = String(entry);
+      const isNew = /^new:(\d+)$/.exec(ref);
+      if (isNew) {
+        const i = Number(isNew[1]);
+        if (i >= uploaded.length) return { error: `imageOrder refers to upload ${i}, but only ${uploaded.length} were sent` };
+        if (used.has(ref)) continue;
+        used.add(ref);
+        images.push(uploaded[i]);
+      } else {
+        if (!existing.includes(ref)) return { error: `imageOrder refers to an image this product doesn't have: ${ref}` };
+        if (used.has(ref)) continue;
+        used.add(ref);
+        images.push(ref);
+      }
+    }
+    uploaded.forEach((img, i) => {
+      if (!used.has(`new:${i}`)) images.push(img);
+    });
+  } else if (String(body.replaceImages) === "true") {
+    images = uploaded.length ? uploaded : existing;
+  } else {
+    images = [...existing, ...uploaded];
+  }
+
+  if (images.length > MAX_PRODUCT_IMAGES) {
+    return { error: `A product can have at most ${MAX_PRODUCT_IMAGES} images (this would make ${images.length})` };
+  }
+  return { images, removed: existing.filter((img) => !images.includes(img)) };
+}
+
 // Create a new product
 exports.createProduct = async (req, res) => {
   try {
     const { category, productType, error } = await resolveCategory(req.body.category);
     if (error) return res.status(400).json({ message: error });
 
-    const images = req.files ? req.files.map(toPublicPath) : [];
+    const resolved = resolveImages(req.body, [], (req.files || []).map(toPublicPath));
+    if (resolved.error) return res.status(400).json({ message: resolved.error });
+    const { images } = resolved;
 
     const Model = PRODUCT_MODELS[productType];
     const product = new Model({
@@ -307,12 +353,13 @@ exports.updateProduct = async (req, res) => {
     const fields = buildProductFields(req.body, productType, category.materialType);
     product.set({ ...fields, category: category._id });
 
-    if (req.files && req.files.length) {
-      const uploaded = req.files.map(toPublicPath);
-      product.images = String(req.body.replaceImages) === "true" ? uploaded : [...product.images, ...uploaded];
-    }
+    const resolved = resolveImages(req.body, [...product.images], (req.files || []).map(toPublicPath));
+    if (resolved.error) return res.status(400).json({ message: resolved.error });
+    product.images = resolved.images;
 
     await product.save();
+    // Delete the files of images that were taken off the product
+    removeStoredImages(resolved.removed);
     await product.populate("category", "name materialType");
     res.status(200).json({ message: "Product updated successfully", product: await withPricing(product) });
   } catch (error) {
@@ -331,6 +378,7 @@ exports.deleteProduct = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
+    removeStoredImages(product.images);
     res.status(200).json({ message: "Product deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: "Error deleting product", error: error.message });

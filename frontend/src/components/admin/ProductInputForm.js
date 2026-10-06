@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import { CloudUpload, Paperclip, Package, AlertCircle, CheckCircle2 } from "lucide-react"
+import { Package, AlertCircle, CheckCircle2 } from "lucide-react"
 import { Button } from "../ui/button"
 import { Switch } from "../ui/switch"
 import {
@@ -26,7 +26,7 @@ import { Input } from "../ui/input"
 import { Textarea } from "../ui/textarea"
 import { Label } from "../ui/label"
 import ApiService from "../../services/apiService"
-import { imageUrl } from "./adminUi"
+import ProductImagesField, { appendImages, existingImageItems, releaseImageItems } from "./ProductImagesField"
 
 // Option lists mirror backend/src/Config/productTypes.js
 const SILVER_TYPES = [
@@ -197,7 +197,7 @@ const productSchema = z
     })
 
 // Turn form values into the multipart body POST /api/products expects
-function toFormData(values, materialType, files, { replaceImages } = {}) {
+function toFormData(values, materialType, images) {
   const fd = new FormData()
   const add = (key, value) => {
     if (!isBlank(value)) fd.append(key, value)
@@ -211,7 +211,6 @@ function toFormData(values, materialType, files, { replaceImages } = {}) {
   add("length", values.length)
   add("unit", values.unit)
   fd.append("isActive", String(values.isActive !== false))
-  if (replaceImages) fd.append("replaceImages", "true")
 
   if (materialType === "silver") {
     add("silverType", values.silverType)
@@ -253,7 +252,7 @@ function toFormData(values, materialType, files, { replaceImages } = {}) {
     add("stockQuantity", values.stockQuantity)
   }
 
-  files.forEach((file) => fd.append("images", file))
+  appendImages(fd, images)
   return fd
 }
 
@@ -325,8 +324,7 @@ export default function ProductInputForm() {
   const navigate = useNavigate()
   const [product, setProduct] = useState(null)
   const [loadError, setLoadError] = useState("")
-  const [replaceImages, setReplaceImages] = useState(false)
-  const [files, setFiles] = useState([])
+  const [images, setImages] = useState([])
   const [categories, setCategories] = useState([])
   const [categoriesError, setCategoriesError] = useState("")
   const [loadingCategories, setLoadingCategories] = useState(true)
@@ -354,6 +352,7 @@ export default function ProductInputForm() {
     ApiService.getProductById(productId)
       .then((data) => {
         setProduct(data.product)
+        setImages(existingImageItems(data.product.images))
         form.reset(productToValues(data.product))
       })
       .catch((err) => setLoadError(err.message || "Failed to load product"))
@@ -370,15 +369,16 @@ export default function ProductInputForm() {
     setCreated(null)
     try {
       if (isEdit) {
-        await ApiService.updateProduct(productId, toFormData(values, materialType, files, { replaceImages }))
+        await ApiService.updateProduct(productId, toFormData(values, materialType, images))
         navigate("/admin/products", { replace: true })
         return
       }
-      const result = await ApiService.createProduct(toFormData(values, materialType, files))
+      const result = await ApiService.createProduct(toFormData(values, materialType, images))
       setCreated(result.product)
       // Keep the category selected so similar products are quick to add
       form.reset({ ...EMPTY_VALUES, category: values.category, materialType: values.materialType })
-      setFiles([])
+      releaseImageItems(images)
+      setImages([])
       window.scrollTo({ top: 0, behavior: "smooth" })
     } catch (err) {
       const details = err.details ? Object.values(err.details).join(" ") : ""
@@ -499,48 +499,7 @@ export default function ProductInputForm() {
                       )}
                     />
 
-                    <div>
-                      <Label className="text-sm font-medium">{isEdit ? "Add images" : "Images"}</Label>
-                      {isEdit && product.images?.length > 0 && (
-                        <div className="mt-2 mb-3">
-                          <div className="flex flex-wrap gap-2">
-                            {product.images.map((img) => (
-                              <img key={img} src={imageUrl(img)} alt="" className="h-20 w-20 rounded-md object-cover bg-gray-100" />
-                            ))}
-                          </div>
-                          <label className="mt-2 flex items-center gap-2 text-sm text-gray-700">
-                            <input type="checkbox" checked={replaceImages} onChange={(e) => setReplaceImages(e.target.checked)} />
-                            Replace these with the newly uploaded images (otherwise new images are added)
-                          </label>
-                        </div>
-                      )}
-                      <div className="mt-2 relative rounded-lg outline-dashed outline-1 outline-slate-400">
-                        <div className="flex items-center justify-center flex-col p-8 w-full pointer-events-none">
-                          <CloudUpload className="text-gray-500 w-10 h-10" />
-                          <p className="mb-1 text-sm text-gray-500">
-                            <span className="font-semibold">Click to upload</span> or drag and drop
-                          </p>
-                          <p className="text-xs text-gray-500">PNG, JPG or WEBP</p>
-                        </div>
-                        <input
-                          type="file"
-                          multiple
-                          accept=".png,.jpg,.jpeg,.webp"
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          onChange={(e) => setFiles(Array.from(e.target.files || []))}
-                        />
-                      </div>
-                      {files.length > 0 && (
-                        <div className="mt-3 space-y-2">
-                          {files.map((file, i) => (
-                            <div key={i} className="flex items-center gap-2 p-2 border rounded text-sm">
-                              <Paperclip className="h-4 w-4" />
-                              {file.name}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <ProductImagesField items={images} onChange={setImages} />
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                       <TextField control={control} name="height" label="Height" type="number" step="any" />
