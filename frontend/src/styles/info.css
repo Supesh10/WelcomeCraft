@@ -62,11 +62,11 @@ a.wc-info-card:hover {
 }
 .wc-page a.wc-info-card,
 .wc-page a.wc-info-card:hover {
-  color: var(--wc-ink);
+  text-decoration: none;
+  color: inherit;
 }
 .wc-info-card.wc-paper {
   background-color: #fffdf9;
-  border-color: var(--wc-line);
 }
 
 /* Links inside contact cards */

@@ -286,7 +286,6 @@ a {
 
 a:hover {
   color: var(--deep-saffron);
-  text-decoration: underline;
 }
 
 /* Responsive adjustments */
