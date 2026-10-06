@@ -14,6 +14,7 @@ const category = require("./src/Routes/categoryRoute");
 const order = require("./src/Routes/orderRoute");
 const admin = require("./src/Routes/adminRoute");
 const cart = require("./src/Routes/cartRoute");
+const currency = require("./src/Routes/currencyRoute");
 
 // Connect to database
 connectDB();
@@ -34,6 +35,7 @@ app.use("/api", silverPrice);
 app.use("/api", order);
 app.use("/api", admin);
 app.use("/api", cart);
+app.use("/api", currency);
 
 // Health check endpoint
 app.get("/health", (req, res) => {

@@ -1,4 +1,5 @@
 import { SERVER_URL } from "../services/apiService";
+import { formatMoney } from "./currency";
 
 // Helpers shared by the shop pages and the admin panel for showing products
 
@@ -34,10 +35,9 @@ export const fallbackToPlaceholder = (e) => {
   if (e.currentTarget.src !== PLACEHOLDER_IMAGE) e.currentTarget.src = PLACEHOLDER_IMAGE;
 };
 
-export const formatRs = (value) =>
-  value == null || Number.isNaN(Number(value))
-    ? "—"
-    : `Rs. ${Math.round(Number(value)).toLocaleString()}`;
+// Always in Nepali rupees (admin pages). The shop uses formatMoney from
+// lib/currency.js, which shows the visitor's chosen currency.
+export { formatNpr as formatRs } from "./currency";
 
 export const isSilver = (p) => p?.productType === "silver";
 export const isCustomSilver = (p) => isSilver(p) && p?.silverType === "custom";
@@ -65,12 +65,13 @@ export function variantLabel(p) {
   return "";
 }
 
-// Price text for product cards, using the pricing block the API returns
-export function priceLabel(p) {
+// Price text for product cards, using the pricing block the API returns.
+// `format` turns an NPR amount into text (the visitor's currency by default).
+export function priceLabel(p, format = formatMoney) {
   const pricing = p?.pricing;
-  if (pricing?.price != null) return formatRs(pricing.price);
-  if (pricing?.priceRange) return `From ${formatRs(pricing.priceRange.min)}`;
-  if (p?.constantPrice != null) return formatRs(p.constantPrice);
+  if (pricing?.price != null) return format(pricing.price);
+  if (pricing?.priceRange) return `From ${format(pricing.priceRange.min)}`;
+  if (p?.constantPrice != null) return format(p.constantPrice);
   return "Price on request";
 }
 

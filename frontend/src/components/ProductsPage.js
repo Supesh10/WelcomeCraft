@@ -5,11 +5,19 @@ import ApiService from "../services/apiService";
 import { isCustomSilver } from "../lib/productDisplay";
 import LivePriceCard from "./shop/LivePriceCard";
 import ProductTile from "./shop/ProductTile";
+import { convertToNpr, currencySymbol, useCurrency } from "../lib/currency";
 import "../styles/catalog.css";
 
 const HEADER_IMAGE = `${process.env.PUBLIC_URL}/images/hero-tara.webp`;
 
+// Price filter value typed in `currency` -> whole NPR for the API
+const toNpr = (value, currency, round) => {
+  const npr = convertToNpr(value, currency);
+  return npr == null ? "" : String(Math.max(0, round(npr)));
+};
+
 const ProductsPage = () => {
+  const { currency } = useCurrency();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [cartMessage, setCartMessage] = useState("");
@@ -33,8 +41,9 @@ const ProductsPage = () => {
   );
   const categoryNameParam = searchParams.get("categoryName");
   const [priceRange, setPriceRange] = useState({ min: "", max: "" });
-  // Price filter actually applied (set when "Apply" is pressed)
-  const [appliedPrice, setAppliedPrice] = useState({ min: "", max: "" });
+  // Price filter actually applied (set when "Apply" is pressed), in the
+  // currency the visitor typed it in
+  const [appliedPrice, setAppliedPrice] = useState({ min: "", max: "", currency });
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalProducts, setTotalProducts] = useState(0);
@@ -72,8 +81,9 @@ const ProductsPage = () => {
         sort: sortBy,
         search: appliedSearch.trim(),
         category: selectedCategory,
-        minPrice: appliedPrice.min,
-        maxPrice: appliedPrice.max,
+        // Prices are stored in NPR
+        minPrice: toNpr(appliedPrice.min, appliedPrice.currency, Math.floor),
+        maxPrice: toNpr(appliedPrice.max, appliedPrice.currency, Math.ceil),
       };
 
       const response = await ApiService.getAllProducts(params);
@@ -156,7 +166,7 @@ const ProductsPage = () => {
     e.preventDefault();
     setCurrentPage(1);
     setAppliedSearch(searchTerm);
-    setAppliedPrice(priceRange);
+    setAppliedPrice({ ...priceRange, currency });
     setRefreshKey((k) => k + 1);
   };
 
@@ -165,7 +175,7 @@ const ProductsPage = () => {
     setSearchTerm("");
     setAppliedSearch("");
     setPriceRange({ min: "", max: "" });
-    setAppliedPrice({ min: "", max: "" });
+    setAppliedPrice({ min: "", max: "", currency });
     setCurrentPage(1);
     searchParams.delete("categoryName");
     searchParams.delete("category");
@@ -188,10 +198,10 @@ const ProductsPage = () => {
     },
     (appliedPrice.min || appliedPrice.max) && {
       key: "price",
-      label: `Rs. ${appliedPrice.min || "0"} – ${appliedPrice.max || "any"}`,
+      label: `${currencySymbol(appliedPrice.currency)}${appliedPrice.currency === "NPR" ? " " : ""}${appliedPrice.min || "0"} – ${appliedPrice.max || "any"}`,
       clear: () => {
         setPriceRange({ min: "", max: "" });
-        setAppliedPrice({ min: "", max: "" });
+        setAppliedPrice({ min: "", max: "", currency });
         setCurrentPage(1);
       },
     },
@@ -306,7 +316,7 @@ const ProductsPage = () => {
 
               <form onSubmit={handleSearch}>
                 <fieldset>
-                  <legend className="wc-filter-title">Price (Rs.)</legend>
+                  <legend className="wc-filter-title">Price ({currency})</legend>
                   <div className="flex gap-2">
                     <input
                       type="number"

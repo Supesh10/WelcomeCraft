@@ -17,9 +17,11 @@ import {
   StickyNote,
 } from "lucide-react";
 import ApiService from "../services/apiService";
-import { fallbackToPlaceholder, formatRs, isSilver, productImage } from "../lib/productDisplay";
+import { fallbackToPlaceholder, isSilver, productImage } from "../lib/productDisplay";
 import { specSummary } from "./CartPage";
 import CheckoutSteps from "./shop/CheckoutSteps";
+import { CurrencyDisclaimer, NprEquivalent } from "./shop/CurrencyNote";
+import { useCurrency } from "../lib/currency";
 import "../styles/cart.css";
 
 const EMPTY_INFO = { name: "", phone: "", email: "", address: "", orderNotes: "" };
@@ -44,6 +46,7 @@ function Field({ id, label, optional, error, icon: Icon, children }) {
 }
 
 const CheckoutPage = () => {
+  const { format: formatMoney } = useCurrency();
   const navigate = useNavigate();
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -370,7 +373,7 @@ const CheckoutPage = () => {
                         Qty {item.quantity}
                       </span>
                       <span className="text-sm font-bold" style={{ color: "var(--wc-maroon)" }}>
-                        {formatRs(item.priceSnapshot * item.quantity)}
+                        {formatMoney(item.priceSnapshot * item.quantity)}
                       </span>
                     </div>
                   </div>
@@ -382,8 +385,12 @@ const CheckoutPage = () => {
               <span className="text-sm font-semibold" style={{ color: "var(--wc-ink)" }}>
                 Estimated total
               </span>
-              <span className="wc-price-big">{formatRs(cart.subtotal)}</span>
+              <span className="wc-price-big">{formatMoney(cart.subtotal)}</span>
             </div>
+            <div className="text-right">
+              <NprEquivalent npr={cart.subtotal} className="text-xs" />
+            </div>
+            <CurrencyDisclaimer className="mt-2" />
             <p className="text-xs mt-3" style={{ color: "var(--wc-ink-muted)" }}>
               {hasSilver ? "Silver prices use today's rate. " : ""}The final price is confirmed when we contact you.
             </p>

@@ -1,24 +1,28 @@
 import React from "react";
 import { TrendingUp, TrendingDown } from "lucide-react";
+import { useCurrency } from "../../lib/currency";
 
-// "+20" / "-15" / "0" -> { text, direction }
-function describeChange(change) {
+// "+20" / "-15" / "0" (NPR) -> { text, direction }, the amount in the shown currency
+function describeChange(change, format) {
   const text = change == null ? "" : String(change).trim();
-  if (text.startsWith("+")) return { text, direction: "up" };
-  if (text.startsWith("-")) return { text, direction: "down" };
-  return { text: text && text !== "0" ? `~${text}` : "No change", direction: "flat" };
+  const amount = Number(text.replace(/[^\d.]/g, ""));
+  const shown = amount > 0 ? format(amount) : text.replace(/^[+-]/, "");
+  if (text.startsWith("+")) return { text: `+${shown}`, direction: "up" };
+  if (text.startsWith("-")) return { text: `-${shown}`, direction: "down" };
+  return { text: text && text !== "0" ? `~${shown}` : "No change", direction: "flat" };
 }
 
 // Today's silver or gold rate per tola, for dark backgrounds
 export default function LivePriceCard({ label, price }) {
-  const change = describeChange(price.dailyChange);
+  const { format } = useCurrency();
+  const change = describeChange(price.dailyChange, format);
   const Icon = change.direction === "down" ? TrendingDown : TrendingUp;
   return (
     <div className="wc-price-card">
       <div className="wc-price-label">{label}</div>
       <div className="flex items-baseline justify-between gap-3 mt-1">
         <div className="wc-price-value">
-          Rs. {price.pricePerTola?.toLocaleString()}
+          {format(price.pricePerTola)}
           <span className="text-xs font-normal ml-1" style={{ fontFamily: "var(--wc-font-sans)" }}>
             / tola
           </span>

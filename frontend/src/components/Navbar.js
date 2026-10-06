@@ -3,6 +3,7 @@ import { Search, ShoppingBag, Menu, X, ArrowRight } from "lucide-react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import ApiService from "../services/apiService";
 import { SHOP } from "../lib/shopInfo";
+import CurrencySwitcher from "./shop/CurrencySwitcher";
 import logo from "../logo.jpg";
 import "../styles/layout.css";
 
@@ -130,6 +131,11 @@ export default function Navbar() {
             </nav>
 
             <div className="flex items-center gap-1">
+              {/* On phones the switcher is in the menu drawer */}
+              <span className="hidden sm:inline-flex">
+                <CurrencySwitcher className="mr-1" />
+              </span>
+
               {/* Search (desktop) */}
               <div className="hidden lg:block">
                 {isSearchOpen ? (
@@ -225,6 +231,8 @@ export default function Navbar() {
                   <Search size={16} />
                 </button>
               </form>
+
+              <CurrencySwitcher id="wc-currency-drawer" full className="mb-6" />
 
               <nav aria-label="Main">
                 {NAV_ITEMS.map((item) => (

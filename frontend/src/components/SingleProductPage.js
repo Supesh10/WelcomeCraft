@@ -31,7 +31,6 @@ import {
   valuesToSpec,
 } from "./CustomPieceForm";
 import {
-  formatRs,
   isCustomSilver,
   isSilver,
   label,
@@ -42,6 +41,8 @@ import {
 } from "../lib/productDisplay";
 import ProductTile from "./shop/ProductTile";
 import ProductGallery from "./shop/ProductGallery";
+import { CurrencyDisclaimer, NprEquivalent } from "./shop/CurrencyNote";
+import { useCurrency } from "../lib/currency";
 import "../styles/product.css";
 
 const WHATSAPP_PHONE = SHOP.whatsapp;
@@ -94,6 +95,7 @@ function summaryTiles(p) {
 }
 
 const SingleProductPage = () => {
+  const { format: formatMoney } = useCurrency();
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -378,22 +380,23 @@ const SingleProductPage = () => {
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                   <span className="wc-price-big">
                     {unitPrice != null
-                      ? formatRs(unitPrice * quantity)
+                      ? formatMoney(unitPrice * quantity)
                       : custom && product.pricing?.priceRange
-                      ? `${formatRs(product.pricing.priceRange.min)} – ${formatRs(product.pricing.priceRange.max)}`
-                      : priceLabel(product)}
+                      ? `${formatMoney(product.pricing.priceRange.min)} – ${formatMoney(product.pricing.priceRange.max)}`
+                      : priceLabel(product, formatMoney)}
                   </span>
                   {quantity > 1 && unitPrice != null && (
                     <span className="text-sm" style={{ color: "var(--wc-ink-muted)" }}>
-                      / {formatRs(unitPrice)} each
+                      / {formatMoney(unitPrice)} each
                     </span>
                   )}
+                  {unitPrice != null && <NprEquivalent npr={unitPrice * quantity} className="basis-full text-sm" />}
                 </div>
                 <span className="wc-price-badge">{priceBadge}</span>
               </div>
               <p className="text-sm mt-3" style={{ color: "var(--wc-ink-muted)" }}>
                 {isSilver(product) && silverRate
-                  ? `Today's silver rate ${formatRs(silverRate)}/tola × weight, plus making charge ${formatRs(product.makingCost)}. `
+                  ? `Today's silver rate ${formatMoney(silverRate)}/tola × weight, plus making charge ${formatMoney(product.makingCost)}. `
                   : ""}
                 {isSilver(product) && !silverRate ? "Today's silver rate isn't available yet. " : ""}
                 {custom
@@ -402,6 +405,7 @@ const SingleProductPage = () => {
                     : "The price depends on the weight you choose below."
                   : "The final price and delivery are confirmed with you before you pay."}
               </p>
+              <CurrencyDisclaimer className="mt-2" />
             </div>
 
             {/* Description */}
@@ -443,7 +447,7 @@ const SingleProductPage = () => {
                     {time && <SpecRow name="Production time" value={`${time.minDays}–${time.maxDays} days`} />}
                   </>
                 )}
-                {isSilver(product) && <SpecRow name="Making charge" value={product.makingCost ? formatRs(product.makingCost) : null} />}
+                {isSilver(product) && <SpecRow name="Making charge" value={product.makingCost ? formatMoney(product.makingCost) : null} />}
                 <SpecRow name="Weight" value={product.weightInKg && `${product.weightInKg} kg`} />
                 <SpecRow name="Dimensions" value={dimensionText && `${dimensionText} ${dims.unit || "inch"}`} />
                 {!custom && product.stockQuantity > 0 && <SpecRow name="Availability" value={`${product.stockQuantity} in stock`} />}
@@ -490,7 +494,7 @@ const SingleProductPage = () => {
 
               <button onClick={handleAddToCart} disabled={addingToCart} className="wc-btn wc-btn-primary w-full" style={{ padding: "1rem 1.5rem" }}>
                 <ShoppingBag size={16} />
-                {addingToCart ? "Adding..." : `Add to cart${unitPrice != null ? ` · ${formatRs(unitPrice * quantity)}` : ""}`}
+                {addingToCart ? "Adding..." : `Add to cart${unitPrice != null ? ` · ${formatMoney(unitPrice * quantity)}` : ""}`}
               </button>
               <div className="grid grid-cols-2 gap-3">
                 {WHATSAPP_PHONE ? (

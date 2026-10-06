@@ -17,9 +17,11 @@ import {
   StickyNote,
 } from "lucide-react";
 import ApiService from "../services/apiService";
-import { fallbackToPlaceholder, formatRs, isCustomSilver, isSilver, productImage, variantLabel } from "../lib/productDisplay";
+import { fallbackToPlaceholder, isCustomSilver, isSilver, productImage, variantLabel } from "../lib/productDisplay";
 import { CustomPieceFields, estimateCustomPrice, specToValues, validateCustomPiece, valuesToSpec } from "./CustomPieceForm";
 import CheckoutSteps from "./shop/CheckoutSteps";
+import { CurrencyDisclaimer, NprEquivalent } from "./shop/CurrencyNote";
+import { useCurrency } from "../lib/currency";
 import "../styles/cart.css";
 
 // Lines describing a custom silver specification
@@ -38,6 +40,7 @@ export function specSummary(spec) {
 }
 
 const CartPage = () => {
+  const { format: formatMoney } = useCurrency();
   const navigate = useNavigate();
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -322,8 +325,8 @@ const CartPage = () => {
                             return (
                               estimate != null && (
                                 <p className="text-sm" style={{ color: "var(--wc-ink-muted)" }}>
-                                  New price: <strong style={{ color: "var(--wc-maroon)" }}>{formatRs(estimate)}</strong> each
-                                  {estimate !== item.priceSnapshot && ` (was ${formatRs(item.priceSnapshot)})`}
+                                  New price: <strong style={{ color: "var(--wc-maroon)" }}>{formatMoney(estimate)}</strong> each
+                                  {estimate !== item.priceSnapshot && ` (was ${formatMoney(item.priceSnapshot)})`}
                                 </p>
                               )
                             );
@@ -415,10 +418,10 @@ const CartPage = () => {
                         </div>
 
                         <div className="text-right ml-auto">
-                          <div className="wc-line-price">{formatRs(item.priceSnapshot * item.quantity)}</div>
+                          <div className="wc-line-price">{formatMoney(item.priceSnapshot * item.quantity)}</div>
                           <div className="text-xs" style={{ color: "var(--wc-ink-muted)" }}>
-                            {formatRs(item.priceSnapshot)} each
-                            {item.silverPriceSnapshot ? ` · silver ${formatRs(item.silverPriceSnapshot)}/tola` : ""}
+                            {formatMoney(item.priceSnapshot)} each
+                            {item.silverPriceSnapshot ? ` · silver ${formatMoney(item.silverPriceSnapshot)}/tola` : ""}
                           </div>
                         </div>
                       </div>
@@ -450,7 +453,7 @@ const CartPage = () => {
                   <span>
                     Items ({cart.totalItems})
                   </span>
-                  <span style={{ color: "var(--wc-ink)" }}>{formatRs(cart.subtotal)}</span>
+                  <span style={{ color: "var(--wc-ink)" }}>{formatMoney(cart.subtotal)}</span>
                 </div>
                 <div className="wc-summary-row">
                   <span>Delivery</span>
@@ -461,8 +464,12 @@ const CartPage = () => {
                 <span className="text-sm font-semibold" style={{ color: "var(--wc-ink)" }}>
                   Estimated total
                 </span>
-                <span className="wc-price-big">{formatRs(cart.subtotal)}</span>
+                <span className="wc-price-big">{formatMoney(cart.subtotal)}</span>
               </div>
+              <div className="text-right">
+                <NprEquivalent npr={cart.subtotal} className="text-xs" />
+              </div>
+              <CurrencyDisclaimer className="mt-2" />
               {hasSilver && (
                 <p className="text-xs mt-3" style={{ color: "var(--wc-ink-muted)" }}>
                   Silver pieces follow the daily silver rate. The final price is confirmed when we contact you.

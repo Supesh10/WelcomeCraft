@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Eye, ShoppingCart } from "lucide-react";
+import { useCurrency } from "../../lib/currency";
 import {
   fallbackToPlaceholder,
   isCustomSilver,
@@ -17,6 +18,7 @@ import {
  * (used for related products).
  */
 export default function ProductTile({ product, onAddToCart, crimson = false, layout = "grid", light = false }) {
+  const { format } = useCurrency();
   const url = `/product/${product._id}`;
   const custom = isCustomSilver(product);
   const row = layout === "row";
@@ -52,7 +54,7 @@ export default function ProductTile({ product, onAddToCart, crimson = false, lay
         </h3>
         {detailed && product.description && <p className="wc-product-desc text-sm mb-4 line-clamp-2">{product.description}</p>}
         <div className="mt-auto flex items-center justify-between gap-2">
-          <span className="wc-product-price">{priceLabel(product)}</span>
+          <span className="wc-product-price">{priceLabel(product, format)}</span>
           {detailed ? (
             <button
               type="button"
