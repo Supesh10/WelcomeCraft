@@ -33,7 +33,7 @@ export default function CategoriesList() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await ApiService.getAllCategories(true)
+      const data = await ApiService.getAllCategories(true, { includeInactive: true })
       setCategories(data.categories || [])
     } catch (err) {
       setError(err.message || "Failed to load categories")

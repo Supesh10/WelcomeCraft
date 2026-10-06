@@ -1,16 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-import { ShoppingCart, Eye, ArrowRight, TrendingUp, TrendingDown, Gem, Sparkles, Flame, Package } from "lucide-react";
+import { ArrowRight, Gem, Sparkles, Flame, Package } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import ApiService from "../services/apiService";
-import {
-  fallbackToPlaceholder,
-  imageUrl,
-  isCustomSilver,
-  isSilver,
-  priceLabel,
-  productImage,
-  variantLabel,
-} from "../lib/productDisplay";
+import { imageUrl, isCustomSilver } from "../lib/productDisplay";
+import LivePriceCard from "./shop/LivePriceCard";
+import ProductTile from "./shop/ProductTile";
 import "../styles/home.css";
 
 const HERO_IMAGE = `${process.env.PUBLIC_URL}/images/hero-tara.webp`;
@@ -31,45 +25,6 @@ const HIGHLIGHTS = [
     text: "Direct communication and personalised service — we confirm every order with you.",
   },
 ];
-
-// "+20" / "-15" / "0" -> { text, direction }
-function describeChange(change) {
-  const text = change == null ? "" : String(change).trim();
-  if (text.startsWith("+")) return { text, direction: "up" };
-  if (text.startsWith("-")) return { text, direction: "down" };
-  return { text: text && text !== "0" ? `~${text}` : "No change", direction: "flat" };
-}
-
-function PriceCard({ label, price }) {
-  const change = describeChange(price.dailyChange);
-  const Icon = change.direction === "down" ? TrendingDown : TrendingUp;
-  return (
-    <div className="wc-price-card">
-      <div className="wc-price-label">{label}</div>
-      <div className="flex items-baseline justify-between gap-3 mt-1">
-        <div className="wc-price-value">
-          Rs. {price.pricePerTola?.toLocaleString()}
-          <span className="text-xs font-normal ml-1" style={{ fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-            / tola
-          </span>
-        </div>
-        <span
-          className={`flex items-center gap-1 text-sm font-semibold ${
-            change.direction === "up" ? "wc-change-up" : change.direction === "down" ? "wc-change-down" : ""
-          }`}
-        >
-          {change.direction !== "flat" && <Icon size={14} />}
-          {change.text}
-        </span>
-      </div>
-      {price.lastScrapedAt && (
-        <p className="text-xs mt-1" style={{ color: "var(--wc-on-dark-muted)" }}>
-          Updated {new Date(price.lastScrapedAt).toLocaleDateString()}
-        </p>
-      )}
-    </div>
-  );
-}
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -121,7 +76,7 @@ const HomePage = () => {
   };
 
   return (
-    <div className="wc-home min-h-screen">
+    <div className="wc-page wc-home min-h-screen">
       {/* Hero */}
       <section className="wc-hero px-4 sm:px-6 py-16 lg:py-24 overflow-hidden" style={{ backgroundImage: `url(${HERO_IMAGE})` }}>
         <div className="container mx-auto">
@@ -142,8 +97,8 @@ const HomePage = () => {
 
               {(silverPrice || goldPrice) && (
                 <div className="grid sm:grid-cols-2 gap-3 max-w-xl">
-                  {silverPrice && <PriceCard label="Live silver price" price={silverPrice} />}
-                  {goldPrice && <PriceCard label="Live gold price" price={goldPrice} />}
+                  {silverPrice && <LivePriceCard label="Live silver price" price={silverPrice} />}
+                  {goldPrice && <LivePriceCard label="Live gold price" price={goldPrice} />}
                 </div>
               )}
 
@@ -264,43 +219,7 @@ const HomePage = () => {
           ) : featuredProducts.length > 0 ? (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {featuredProducts.slice(0, 8).map((product, index) => (
-                <article key={product._id} className={`wc-product-card group ${index % 4 === 0 ? "wc-crimson" : ""}`}>
-                  <div className="wc-product-photo">
-                    <Link to={`/product/${product._id}`} tabIndex={-1} aria-hidden="true">
-                      <img src={productImage(product)} onError={fallbackToPlaceholder} alt="" />
-                    </Link>
-                    {isSilver(product) && <span className="wc-tag">{isCustomSilver(product) ? "Made to order" : "Live price"}</span>}
-                    <div className="absolute top-2 right-2 flex flex-col gap-2">
-                      <Link to={`/product/${product._id}`} className="wc-icon-btn" aria-label={`View ${product.title}`}>
-                        <Eye size={16} />
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => addToCart(product)}
-                        className="wc-icon-btn"
-                        aria-label={isCustomSilver(product) ? `Customize ${product.title}` : `Add ${product.title} to cart`}
-                      >
-                        <ShoppingCart size={16} />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="p-5 flex flex-col flex-1">
-                    <p className="wc-product-meta truncate">
-                      {[product.category?.name, variantLabel(product)].filter(Boolean).join(" · ")}
-                    </p>
-                    <h3 className="text-lg leading-snug mt-1 mb-4">
-                      <Link to={`/product/${product._id}`} className="hover:underline">
-                        {product.title}
-                      </Link>
-                    </h3>
-                    <div className="mt-auto flex items-center justify-between gap-2">
-                      <span className="wc-product-price">{priceLabel(product)}</span>
-                      <Link to={`/product/${product._id}`} className="wc-product-link">
-                        Details ›
-                      </Link>
-                    </div>
-                  </div>
-                </article>
+                <ProductTile key={product._id} product={product} crimson={index % 4 === 0} onAddToCart={addToCart} />
               ))}
             </div>
           ) : (

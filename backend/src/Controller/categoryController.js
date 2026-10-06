@@ -52,7 +52,9 @@ exports.createCategory = async (req, res) => {
 // Get All Categories with product counts
 exports.getAllCategories = async (req, res) => {
   try {
-    const { includeProductCount = false } = req.query;
+    const { includeProductCount = false, includeInactive } = req.query;
+    // Shop pages count only visible products; the admin panel asks for all
+    const countFilter = String(includeInactive) === "true" ? {} : { isActive: { $ne: false } };
     
     const categories = await Category.find().sort({ name: 1 });
     
@@ -60,7 +62,7 @@ exports.getAllCategories = async (req, res) => {
       // Add product count for each category
       const categoriesWithCounts = await Promise.all(
         categories.map(async (category) => {
-          const productCount = await Product.countDocuments({ category: category._id });
+          const productCount = await Product.countDocuments({ category: category._id, ...countFilter });
           return {
             ...category.toObject(),
             productCount

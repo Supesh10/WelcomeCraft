@@ -117,9 +117,13 @@ class ApiService {
   }
 
   // Category API methods
-  static async getAllCategories(includeProductCount = false) {
-    const params = includeProductCount ? "?includeProductCount=true" : "";
-    return this.makeRequest(`/categories${params}`);
+  // includeInactive: count hidden products too (admin panel)
+  static async getAllCategories(includeProductCount = false, { includeInactive = false } = {}) {
+    const params = new URLSearchParams();
+    if (includeProductCount) params.append("includeProductCount", "true");
+    if (includeInactive) params.append("includeInactive", "true");
+    const query = params.toString();
+    return this.makeRequest(`/categories${query ? "?" + query : ""}`);
   }
 
   static async getCategoryById(categoryId) {
