@@ -211,38 +211,6 @@
   padding-top: 0.85rem;
 }
 
-/* Checkout form fields */
-.wc-field-label {
-  display: block;
-  margin-bottom: 0.4rem;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--wc-ink);
-}
-.wc-field-label .wc-optional {
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: none;
-  color: var(--wc-ink-muted);
-}
-.wc-field-icon {
-  position: absolute;
-  left: 0.85rem;
-  top: 0.8rem;
-  color: var(--wc-gold-deep);
-  pointer-events: none;
-}
-.wc-page .wc-panel .input-field.wc-invalid {
-  border-color: #c0392b;
-}
-.wc-field-error {
-  margin-top: 0.3rem;
-  font-size: 0.75rem;
-  color: #a02020;
-}
-
 /* Empty, error and success states */
 .wc-state-icon {
   width: 5rem;

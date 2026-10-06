@@ -1,7 +1,11 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { MapPin, Phone, Mail, Clock, MessageCircle, Send, CheckCircle, Navigation } from "lucide-react";
+import { MapPin, Phone, Mail, Clock, MessageCircle, Send, CheckCircle, Navigation, Plus, Tag, User } from "lucide-react";
 import { SHOP, whatsappLink } from "../lib/shopInfo";
+import "../styles/home.css";
+import "../styles/info.css";
+
+const HERO_IMAGE = `${process.env.PUBLIC_URL}/images/hero-tara.webp`;
 
 const TOPICS = [
   "General question",
@@ -23,7 +27,11 @@ const FAQS = [
   },
   {
     q: "How do I pay?",
-    a: "There is no online payment. After you place an order, our team contacts you to confirm availability, the final price, payment and delivery.",
+    a: "There is no online payment yet. After you place an order, our team contacts you to confirm availability, the final price, payment and delivery.",
+    soon: [
+      "We're working on chat through WhatsApp and WeChat, so it's easier to talk to us and work together on your order.",
+      "We also plan to add online payment through connectIPS or a similar payment platform in the future.",
+    ],
   },
   {
     q: "Which gold finishes do you offer?",
@@ -33,20 +41,16 @@ const FAQS = [
 
 const EMPTY = { name: "", contact: "", topic: TOPICS[0], message: "" };
 
-function InfoCard({ Icon, bg, fg, title, children }) {
+function InfoCard({ Icon, title, children }) {
   return (
-    <div className="card">
-      <div className="card-body flex items-start gap-4">
-        <div className={`w-12 h-12 rounded-full ${bg} flex items-center justify-center flex-shrink-0`}>
-          <Icon size={20} className={fg} />
-        </div>
-        <div className="min-w-0">
-          <h2 className="font-semibold mb-1" style={{ color: "var(--dark-gray)", fontSize: "1rem" }}>
-            {title}
-          </h2>
-          <div className="text-sm space-y-1" style={{ color: "var(--stone-gray)" }}>
-            {children}
-          </div>
+    <div className="wc-info-card flex items-start gap-4">
+      <div className="wc-icon-circle">
+        <Icon size={20} />
+      </div>
+      <div className="min-w-0">
+        <h2 className="wc-panel-title mb-1.5">{title}</h2>
+        <div className="text-sm space-y-1" style={{ color: "var(--wc-ink-muted)" }}>
+          {children}
         </div>
       </div>
     </div>
@@ -89,53 +93,57 @@ const ContactPage = () => {
     setSent(true);
   };
 
+  const fieldClass = (name, extra = "") => `input-field w-full ${extra} ${errors[name] ? "wc-invalid" : ""}`;
+  const errorText = (name) =>
+    errors[name] && (
+      <p id={`contact-${name}-error`} className="wc-field-error">
+        {errors[name]}
+      </p>
+    );
+  const describedBy = (name) => (errors[name] ? `contact-${name}-error` : undefined);
+
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "var(--cream)" }}>
-      <section className="py-16 px-4 sm:px-6 bg-white">
-        <div className="container mx-auto max-w-3xl text-center">
-          <h1 className="text-4xl lg:text-5xl font-display font-bold mb-4" style={{ color: "var(--dark-gray)" }}>
-            Contact Us
+    <div className="wc-page wc-light-page min-h-screen">
+      <section className="wc-hero wc-info-hero px-4 sm:px-6 py-16 lg:py-20" style={{ backgroundImage: `url(${HERO_IMAGE})` }}>
+        <div className="container mx-auto max-w-3xl">
+          <span className="wc-eyebrow" style={{ color: "var(--wc-gold)" }}>
+            We're here to help
+          </span>
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl leading-tight mt-3 mb-5">
+            Contact <span className="wc-accent">Us</span>
           </h1>
-          <p className="text-lg" style={{ color: "var(--stone-gray)" }}>
-            Questions about a statue, a custom order or visiting the shop? We're happy to help.
-          </p>
+          <p className="text-base sm:text-lg">Questions about a statue, a custom order or visiting the shop? We're happy to help.</p>
         </div>
       </section>
 
-      <div className="container mx-auto px-4 sm:px-6 py-12">
-        <div className="grid lg:grid-cols-5 gap-8">
+      <div className="container mx-auto px-4 sm:px-6 py-12 lg:py-16">
+        <div className="grid lg:grid-cols-5 gap-8 items-start">
           {/* Details */}
           <div className="lg:col-span-2 space-y-4">
-            <InfoCard Icon={MapPin} bg="bg-blue-100" fg="text-blue-600" title="Visit our shop">
+            <InfoCard Icon={MapPin} title="Visit our shop">
               {SHOP.addressLines.map((line) => (
                 <p key={line}>{line}</p>
               ))}
-              <a
-                href={SHOP.mapsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 pt-1 font-medium hover:underline"
-                style={{ color: "var(--saffron)" }}
-              >
-                <Navigation size={14} /> Get directions
+              <a href={SHOP.mapsUrl} target="_blank" rel="noopener noreferrer" className="wc-info-link inline-flex items-center gap-1 pt-1">
+                <Navigation size={13} /> Get directions
               </a>
             </InfoCard>
 
-            <InfoCard Icon={Clock} bg="bg-yellow-100" fg="text-yellow-600" title="Opening hours">
+            <InfoCard Icon={Clock} title="Opening hours">
               <p>{SHOP.hours}</p>
             </InfoCard>
 
             {SHOP.phone && (
-              <InfoCard Icon={Phone} bg="bg-green-100" fg="text-green-600" title="Call us">
-                <a href={SHOP.phoneHref} className="hover:underline">
+              <InfoCard Icon={Phone} title="Call us">
+                <a href={SHOP.phoneHref} className="wc-info-link">
                   {SHOP.phone}
                 </a>
               </InfoCard>
             )}
 
             {SHOP.whatsapp && (
-              <InfoCard Icon={MessageCircle} bg="bg-emerald-100" fg="text-emerald-600" title="WhatsApp">
-                <a href={whatsappLink()} target="_blank" rel="noreferrer" className="hover:underline">
+              <InfoCard Icon={MessageCircle} title="WhatsApp">
+                <a href={whatsappLink()} target="_blank" rel="noreferrer" className="wc-info-link">
                   +{SHOP.whatsapp}
                 </a>
                 <p>Send us photos or questions.</p>
@@ -143,8 +151,8 @@ const ContactPage = () => {
             )}
 
             {SHOP.email && (
-              <InfoCard Icon={Mail} bg="bg-purple-100" fg="text-purple-600" title="Email">
-                <a href={`mailto:${SHOP.email}`} className="hover:underline break-all">
+              <InfoCard Icon={Mail} title="Email">
+                <a href={`mailto:${SHOP.email}`} className="wc-info-link break-all">
                   {SHOP.email}
                 </a>
               </InfoCard>
@@ -153,121 +161,157 @@ const ContactPage = () => {
 
           {/* Message form */}
           <div className="lg:col-span-3">
-            <div className="card">
-              <div className="card-body">
-                <h2 className="text-2xl font-display font-bold mb-1" style={{ color: "var(--dark-gray)" }}>
-                  Send us a message
-                </h2>
-                <p className="text-sm mb-6" style={{ color: "var(--stone-gray)" }}>
-                  {SHOP.whatsapp
-                    ? "Your message opens in WhatsApp, ready to send."
-                    : SHOP.email
-                    ? "Your message opens in your email app, ready to send."
-                    : "Please call or visit us — online messages aren't set up yet."}
-                </p>
+            <div className="wc-panel" style={{ padding: "1.75rem" }}>
+              <span className="wc-eyebrow">Write to us</span>
+              <h2 className="text-2xl sm:text-3xl mt-2 mb-1">
+                Send us a <span className="wc-accent">message</span>
+              </h2>
+              <p className="text-sm mb-6" style={{ color: "var(--wc-ink-muted)" }}>
+                {SHOP.whatsapp
+                  ? "Your message opens in WhatsApp, ready to send."
+                  : SHOP.email
+                  ? "Your message opens in your email app, ready to send."
+                  : "Please call or visit us — online messages aren't set up yet."}
+              </p>
 
-                {sent && (
-                  <div className="mb-4 flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-                    <CheckCircle size={18} className="flex-shrink-0 mt-0.5" />
-                    <p>
-                      Your message is ready in {SHOP.whatsapp ? "WhatsApp" : "your email app"} — press send there. If nothing
-                      opened, check that pop-ups are allowed{SHOP.phone ? ` or call us on ${SHOP.phone}` : ""}.
-                    </p>
-                  </div>
-                )}
+              {sent && (
+                <div className="wc-alert wc-alert-success mb-5" role="status">
+                  <CheckCircle size={18} className="flex-shrink-0" />
+                  <p>
+                    Your message is ready in {SHOP.whatsapp ? "WhatsApp" : "your email app"} — press send there. If nothing opened,
+                    check that pop-ups are allowed{SHOP.phone ? ` or call us on ${SHOP.phone}` : ""}.
+                  </p>
+                </div>
+              )}
 
-                <form onSubmit={handleSubmit} noValidate className="space-y-4">
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div>
-                      <label htmlFor="contact-name" className="block text-sm font-medium mb-1" style={{ color: "var(--dark-gray)" }}>
-                        Your name *
-                      </label>
+              <form onSubmit={handleSubmit} noValidate className="space-y-4">
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="contact-name" className="wc-field-label">
+                      Your name <span aria-hidden="true">*</span>
+                    </label>
+                    <div className="relative">
                       <input
                         id="contact-name"
                         autoComplete="name"
                         value={form.name}
                         onChange={set("name")}
-                        className={`input-field w-full ${errors.name ? "border-red-500" : ""}`}
+                        aria-invalid={!!errors.name}
+                        aria-describedby={describedBy("name")}
+                        className={fieldClass("name", "pl-10")}
                       />
-                      {errors.name && <p className="text-red-600 text-xs mt-1">{errors.name}</p>}
+                      <User size={16} className="wc-field-icon" aria-hidden="true" />
                     </div>
-                    <div>
-                      <label htmlFor="contact-reply" className="block text-sm font-medium mb-1" style={{ color: "var(--dark-gray)" }}>
-                        Phone or email *
-                      </label>
+                    {errorText("name")}
+                  </div>
+                  <div>
+                    <label htmlFor="contact-reply" className="wc-field-label">
+                      Phone or email <span aria-hidden="true">*</span>
+                    </label>
+                    <div className="relative">
                       <input
                         id="contact-reply"
                         value={form.contact}
                         onChange={set("contact")}
                         placeholder="So we can reply"
-                        className={`input-field w-full ${errors.contact ? "border-red-500" : ""}`}
+                        aria-invalid={!!errors.contact}
+                        aria-describedby={describedBy("contact")}
+                        className={fieldClass("contact", "pl-10")}
                       />
-                      {errors.contact && <p className="text-red-600 text-xs mt-1">{errors.contact}</p>}
+                      <Phone size={16} className="wc-field-icon" aria-hidden="true" />
                     </div>
+                    {errorText("contact")}
                   </div>
+                </div>
 
-                  <div>
-                    <label htmlFor="contact-topic" className="block text-sm font-medium mb-1" style={{ color: "var(--dark-gray)" }}>
-                      Topic
-                    </label>
-                    <select id="contact-topic" value={form.topic} onChange={set("topic")} className="input-field w-full">
+                <div>
+                  <label htmlFor="contact-topic" className="wc-field-label">
+                    Topic
+                  </label>
+                  <div className="relative">
+                    <select id="contact-topic" value={form.topic} onChange={set("topic")} className="input-field w-full pl-10">
                       {TOPICS.map((t) => (
                         <option key={t}>{t}</option>
                       ))}
                     </select>
+                    <Tag size={16} className="wc-field-icon" aria-hidden="true" />
                   </div>
+                </div>
 
-                  <div>
-                    <label htmlFor="contact-message" className="block text-sm font-medium mb-1" style={{ color: "var(--dark-gray)" }}>
-                      Message *
-                    </label>
-                    <textarea
-                      id="contact-message"
-                      rows={5}
-                      value={form.message}
-                      onChange={set("message")}
-                      placeholder={
-                        form.topic === "Custom order"
-                          ? "Which deity or design, roughly what size or weight, and when you need it"
-                          : "How can we help?"
-                      }
-                      className={`input-field w-full resize-none ${errors.message ? "border-red-500" : ""}`}
-                    />
-                    {errors.message && <p className="text-red-600 text-xs mt-1">{errors.message}</p>}
-                  </div>
+                <div>
+                  <label htmlFor="contact-message" className="wc-field-label">
+                    Message <span aria-hidden="true">*</span>
+                  </label>
+                  <textarea
+                    id="contact-message"
+                    rows={5}
+                    value={form.message}
+                    onChange={set("message")}
+                    aria-invalid={!!errors.message}
+                    aria-describedby={describedBy("message")}
+                    placeholder={
+                      form.topic === "Custom order"
+                        ? "Which deity or design, roughly what size or weight, and when you need it"
+                        : "How can we help?"
+                    }
+                    className={fieldClass("message", "resize-none")}
+                  />
+                  {errorText("message")}
+                </div>
 
-                  <button type="submit" disabled={!canSend} className="btn btn-primary w-full disabled:opacity-50">
-                    <Send size={18} className="mr-2" />
-                    {SHOP.whatsapp ? "Send on WhatsApp" : "Send by email"}
-                  </button>
-                </form>
-              </div>
+                <button
+                  type="submit"
+                  disabled={!canSend}
+                  className={`wc-btn w-full ${SHOP.whatsapp ? "wc-btn-whatsapp" : "wc-btn-primary"}`}
+                  style={{ padding: "1rem 1.5rem" }}
+                >
+                  <Send size={15} />
+                  {SHOP.whatsapp ? "Send on WhatsApp" : "Send by email"}
+                </button>
+              </form>
             </div>
           </div>
         </div>
 
         {/* FAQ */}
-        <section className="mt-16 max-w-3xl mx-auto">
-          <h2 className="text-3xl font-display font-bold mb-6 text-center" style={{ color: "var(--dark-gray)" }}>
-            Common questions
-          </h2>
+        <section className="mt-16 lg:mt-20 max-w-3xl mx-auto">
+          <div className="text-center mb-8">
+            <span className="wc-eyebrow">Good to know</span>
+            <h2 className="text-3xl sm:text-4xl mt-2">
+              Common <span className="wc-accent">questions</span>
+            </h2>
+          </div>
           <div className="space-y-3">
-            {FAQS.map(({ q, a }) => (
-              <details key={q} className="card group">
-                <summary className="card-body cursor-pointer font-semibold list-none flex justify-between gap-4" style={{ color: "var(--dark-gray)" }}>
+            {FAQS.map(({ q, a, soon }) => (
+              <details key={q} className="wc-faq">
+                <summary>
                   {q}
-                  <span className="transition-transform group-open:rotate-45 text-xl leading-none" aria-hidden="true">
-                    +
+                  <span className="wc-faq-toggle" aria-hidden="true">
+                    <Plus size={14} />
                   </span>
                 </summary>
-                <p className="px-6 pb-6 -mt-2 text-sm leading-relaxed" style={{ color: "var(--stone-gray)" }}>
-                  {a}
-                </p>
+                <div className="wc-faq-body space-y-3">
+                  <p>{a}</p>
+                  {soon && (
+                    <div className="wc-panel space-y-2" style={{ padding: "1rem" }}>
+                      <span className="wc-soon">Coming soon</span>
+                      <ul className="list-disc pl-5 space-y-1">
+                        {soon.map((line) => (
+                          <li key={line}>{line}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               </details>
             ))}
           </div>
-          <p className="text-center text-sm mt-8" style={{ color: "var(--stone-gray)" }}>
-            Want to know more about us? Read <Link to="/about" className="underline">our story</Link>.
+          <p className="text-center text-sm mt-8" style={{ color: "var(--wc-ink-muted)" }}>
+            Want to know more about us? Read{" "}
+            <Link to="/about" className="wc-info-link">
+              our story
+            </Link>
+            .
           </p>
         </section>
       </div>
