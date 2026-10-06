@@ -7,10 +7,10 @@ import { API_BASE_URL } from "../services/apiService";
 
 // Keep in step with backend/src/Config/currencies.js
 export const CURRENCIES = {
-  USD: { code: "USD", name: "US dollar", flag: "🇺🇸" },
-  NPR: { code: "NPR", name: "Nepali rupee", flag: "🇳🇵" },
-  CNY: { code: "CNY", name: "Chinese yuan", flag: "🇨🇳" },
-  INR: { code: "INR", name: "Indian rupee", flag: "🇮🇳" },
+  USD: { code: "USD", name: "US dollar" },
+  NPR: { code: "NPR", name: "Nepali rupee" },
+  CNY: { code: "CNY", name: "Chinese yuan" },
+  INR: { code: "INR", name: "Indian rupee" },
 };
 export const BASE_CURRENCY = "NPR";
 const DEFAULT_CURRENCY = (process.env.REACT_APP_DEFAULT_CURRENCY || "USD").toUpperCase();

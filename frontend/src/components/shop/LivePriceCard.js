@@ -19,25 +19,24 @@ export default function LivePriceCard({ label, price }) {
   const Icon = change.direction === "down" ? TrendingDown : TrendingUp;
   return (
     <div className="wc-price-card">
-      <div className="wc-price-label">{label}</div>
-      <div className="flex items-baseline justify-between gap-3 mt-1">
-        <div className="wc-price-value">
-          {format(price.pricePerTola)}
-          <span className="text-xs font-normal ml-1" style={{ fontFamily: "var(--wc-font-sans)" }}>
-            / tola
-          </span>
-        </div>
+      {/* Label and daily change on one row, the amount on its own row, so
+          long amounts (e.g. a gold rate in rupees) don't push anything out */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="wc-price-label min-w-0">{label}</div>
         <span
-          className={`flex items-center gap-1 text-sm font-semibold ${
+          className={`wc-price-change ${
             change.direction === "up" ? "wc-change-up" : change.direction === "down" ? "wc-change-down" : ""
           }`}
         >
-          {change.direction !== "flat" && <Icon size={14} />}
+          {change.direction !== "flat" && <Icon size={13} />}
           {change.text}
         </span>
       </div>
+      <div className="wc-price-value mt-1">
+        <span>{format(price.pricePerTola)}</span> <span className="wc-price-unit">/ tola</span>
+      </div>
       {price.lastScrapedAt && (
-        <p className="text-xs mt-1" style={{ color: "var(--wc-on-dark-muted)" }}>
+        <p className="text-xs mt-auto pt-1" style={{ color: "var(--wc-on-dark-muted)" }}>
           Updated {new Date(price.lastScrapedAt).toLocaleDateString()}
         </p>
       )}

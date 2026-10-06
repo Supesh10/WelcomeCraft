@@ -232,7 +232,7 @@ export default function Navbar() {
                 </button>
               </form>
 
-              <CurrencySwitcher id="wc-currency-drawer" full className="mb-6" />
+              <CurrencySwitcher full className="mb-6" />
 
               <nav aria-label="Main">
                 {NAV_ITEMS.map((item) => (

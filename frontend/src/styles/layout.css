@@ -255,6 +255,7 @@
 
 /* Currency switcher (navbar and mobile drawer) */
 .wc-currency {
+  position: relative;
   display: inline-flex;
   flex-direction: column;
   gap: 0.4rem;
@@ -267,12 +268,11 @@
   color: var(--wc-ink-muted);
 }
 .wc-currency-box {
-  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.45rem;
   height: 2.5rem;
-  padding: 0 0.6rem;
+  padding: 0 0.65rem;
   border: 1px solid rgba(67, 10, 18, 0.18);
   border-radius: 4px;
   background-color: #fffdf9;
@@ -281,39 +281,112 @@
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.08em;
+  white-space: nowrap;
 }
 .wc-currency-box:hover {
   border-color: rgba(67, 10, 18, 0.4);
 }
-.wc-currency-box:focus-within {
+.wc-currency-box:focus-visible {
   outline: 2px solid var(--wc-crimson);
   outline-offset: 2px;
 }
-.wc-currency-box select {
-  appearance: none;
-  -webkit-appearance: none;
-  background: transparent;
-  border: 0;
-  padding: 0 1rem 0 0;
-  margin-right: -1rem;
-  font: inherit;
-  letter-spacing: inherit;
-  color: inherit;
-  cursor: pointer;
-  position: relative;
-  z-index: 1;
-}
-.wc-currency-box select:focus {
-  outline: none;
-}
-.wc-currency-box svg {
+.wc-currency-chevron {
   flex-shrink: 0;
   color: var(--wc-gold-deep);
+  transition: transform 0.2s ease;
+}
+.wc-currency-full {
+  display: flex;
 }
 .wc-currency-full .wc-currency-box {
   width: 100%;
   height: 2.9rem;
 }
-.wc-currency-full .wc-currency-box select {
+.wc-currency-full .wc-currency-box > span:not(.wc-flag) {
   flex: 1;
+  text-align: left;
+}
+
+.wc-currency-list {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 70;
+  min-width: 13rem;
+  padding: 0.35rem;
+  border-radius: 6px;
+  border: 1px solid rgba(67, 10, 18, 0.12);
+  background-color: #fffdf9;
+  box-shadow: 0 18px 40px rgba(32, 28, 28, 0.18);
+  font-family: var(--wc-font-sans);
+}
+.wc-currency-list:focus {
+  outline: none;
+}
+.wc-currency-full .wc-currency-list {
+  left: 0;
+  right: 0;
+  min-width: 0;
+}
+.wc-currency-option {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--wc-ink);
+}
+.wc-currency-option.wc-active {
+  background-color: var(--wc-stone);
+}
+.wc-currency-list:focus-visible .wc-currency-option.wc-active {
+  outline: 2px solid var(--wc-crimson);
+  outline-offset: -2px;
+}
+.wc-currency-option[aria-selected="true"] {
+  color: var(--wc-maroon);
+}
+.wc-currency-option[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.wc-currency-option svg {
+  flex-shrink: 0;
+  color: var(--wc-maroon);
+}
+.wc-currency-code {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.wc-currency-name {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--wc-ink-muted);
+}
+
+/* Inline SVG flags */
+.wc-flag {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 1.35rem;
+  height: 0.9rem;
+  overflow: hidden;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+.wc-flag svg {
+  width: 100%;
+  height: 100%;
+}
+/* Nepal's flag isn't a rectangle */
+.wc-flag-np {
+  width: 0.8rem;
+  height: 1rem;
+  margin: 0 0.275rem;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
 }

@@ -60,6 +60,9 @@
 
 /* Live price cards (dark background) */
 .wc-price-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   border-radius: 6px;
   padding: 0.85rem 1rem;
   background-color: rgba(52, 48, 48, 0.72);
@@ -78,8 +81,27 @@
 
 .wc-price-card .wc-price-value {
   font-family: var(--wc-font-serif);
-  font-size: 1.35rem;
+  font-size: clamp(1.15rem, 1.6vw + 0.6rem, 1.35rem);
   font-weight: 600;
+  line-height: 1.25;
+}
+/* Keep the amount and "/ tola" whole; they may wrap onto two lines */
+.wc-price-card .wc-price-value > span {
+  white-space: nowrap;
+}
+.wc-price-card .wc-price-unit {
+  font-family: var(--wc-font-sans);
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--wc-on-dark-muted);
+}
+.wc-price-card .wc-price-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .wc-change-up {
