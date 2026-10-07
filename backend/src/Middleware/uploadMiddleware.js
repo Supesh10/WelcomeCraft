@@ -1,72 +1,82 @@
-const multer = require("multer");
-const path = require("path");
 const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
+const multer = require("multer");
+
+// Saved files are served by app.js at /uploads/<filename>
+const UPLOAD_DIR = path.join(__dirname, "..", "..", "uploads");
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // Storage configuration
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    let folder = "uploads/others"; // default
-
-    if (req.originalUrl.includes("products")) {
-      // For products, we need to create nested folders
-      const { type, title } = req.body;
-
-      if (type && title) {
-        const categoryName = type.toString();
-
-        // Create nested folder structure: uploads/products/CategoryName/ProductTitle
-        folder = `uploads/products/${categoryName.replace(
-          /\s+/g,
-          "_"
-        )}/${title.replace(/\s+/g, "_")}`;
-      } else {
-        // Fallback to basic products folder if category/title not available
-        folder = "uploads/products";
-      }
-    } else if (req.baseUrl.includes("categories")) {
-      folder = "uploads/categories";
-    }
-
-    // Create folder if it doesn't exist
-    if (!fs.existsSync(folder)) {
-      fs.mkdirSync(folder, { recursive: true });
-      console.log(`Created folder: ${folder}`);
-    }
-
-    cb(null, folder);
-  },
+  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+  // Random suffix so several images uploaded in the same millisecond
+  // don't overwrite each other
   filename: (req, file, cb) => {
-    // Prevent filename collisions
-    const timestamp = Date.now();
     const ext = path.extname(file.originalname).toLowerCase();
-    const safeName = file.originalname
-      .replace(ext, "")
-      .replace(/\s+/g, "_")
-      .toLowerCase();
-    cb(null, `${timestamp}-${safeName}${ext}`);
+    cb(null, `${Date.now()}-${crypto.randomBytes(6).toString("hex")}${ext}`);
   },
 });
 
-// File filter: allow images only
-const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|webp/;
-  const extname = allowedTypes.test(
-    path.extname(file.originalname).toLowerCase()
-  );
-  const mimetype = allowedTypes.test(file.mimetype);
+const ALLOWED = /^(image\/(jpeg|png|webp|gif))$/;
 
-  if (extname && mimetype) {
-    cb(null, true);
-  } else {
-    cb(new Error("Only image files (jpeg, jpg, png, webp) are allowed"));
-  }
+const fileFilter = (req, file, cb) => {
+  if (ALLOWED.test(file.mimetype)) return cb(null, true);
+  const error = new Error("Only JPG, PNG, WEBP or GIF images are allowed");
+  error.status = 400;
+  cb(error);
 };
 
-// Multer upload instance
+// Most images a product can have, counting ones it already has
+const MAX_PRODUCT_IMAGES = 10;
+
 const upload = multer({
   storage,
   fileFilter,
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB max per file
+  limits: { fileSize: 5 * 1024 * 1024, files: MAX_PRODUCT_IMAGES },
 });
 
-module.exports = upload;
+// Turns a saved file into the path stored in the database
+const toPublicPath = (file) => `/uploads/${file.filename}`;
+
+// Delete files from this request, e.g. when saving the product failed
+const removeUploadedFiles = (req) => {
+  const files = [...(req.files || []), ...(req.file ? [req.file] : [])];
+  files.forEach((f) => fs.unlink(f.path, () => {}));
+};
+
+// Delete images that were stored by this app (paths like /uploads/<file>).
+// Anything else, such as an external URL, is left alone.
+const removeStoredImages = (publicPaths = []) => {
+  publicPaths.forEach((p) => {
+    const match = /^\/uploads\/([^/\\]+)$/.exec(String(p));
+    if (match) fs.unlink(path.join(UPLOAD_DIR, match[1]), () => {});
+  });
+};
+
+// Wrap a multer handler so upload errors return 400 JSON instead of a 500
+// HTML page, and so files from a rejected request don't stay on disk
+const handle = (middleware) => (req, res, next) =>
+  middleware(req, res, (err) => {
+    res.on("finish", () => {
+      if (res.statusCode >= 400) removeUploadedFiles(req);
+    });
+    if (!err) return next();
+    const message =
+      err.code === "LIMIT_FILE_SIZE"
+        ? "Each image must be 5 MB or smaller"
+        : err.code === "LIMIT_FILE_COUNT" || err.code === "LIMIT_UNEXPECTED_FILE"
+        ? `A product can have at most ${MAX_PRODUCT_IMAGES} images`
+        : err.message;
+    res.status(err.status || 400).json({ message });
+  });
+
+module.exports = {
+  UPLOAD_DIR,
+  MAX_PRODUCT_IMAGES,
+  toPublicPath,
+  removeUploadedFiles,
+  removeStoredImages,
+  productImages: handle(upload.array("images", MAX_PRODUCT_IMAGES)),
+  categoryImage: handle(upload.single("image")),
+};

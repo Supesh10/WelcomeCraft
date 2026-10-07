@@ -3,14 +3,11 @@ const productController = require("../Controller/productController");
 const authMiddleware = require("../Middleware/authMiddleware");
 const upload = require("../Middleware/uploadMiddleware");
 const router = express.Router();
+const { productImages } = require("../Middleware/uploadMiddleware");
 
 // Create a new product
-router.post(
-  "/products",
-  authMiddleware,
-  upload.array("images", 10),
-  productController.createProduct
-);
+router.post('/products', authMiddleware, productImages, productController.createProduct);
+
 
 // Get all products
 router.get("/products", productController.getAllProducts);
@@ -19,12 +16,7 @@ router.get("/products", productController.getAllProducts);
 router.get("/products/:productId", productController.getProductById);
 
 // Update a product
-router.put(
-  "/products/:productId",
-  authMiddleware,
-  upload.array("images", 10),
-  productController.updateProduct
-);
+router.put("/products/:productId", authMiddleware, productImages, productController.updateProduct);
 
 // Delete a product
 router.delete(

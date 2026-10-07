@@ -1,3 +1,4 @@
+require('dns').setServers(['8.8.8.8', '1.1.1.1']);
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
@@ -14,6 +15,7 @@ const category = require("./src/Routes/categoryRoute");
 const order = require("./src/Routes/orderRoute");
 const admin = require("./src/Routes/adminRoute");
 const cart = require("./src/Routes/cartRoute");
+const currency = require("./src/Routes/currencyRoute");
 
 // Connect to database
 connectDB();
@@ -24,7 +26,17 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded files
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/uploads", express.static(require("./src/Middleware/uploadMiddleware").UPLOAD_DIR));
+
+// API Routes
+app.use("/api", product);
+app.use("/api", category);
+app.use("/api", goldPrice);
+app.use("/api", silverPrice);
+app.use("/api", order);
+app.use("/api", admin);
+app.use("/api", cart);
+app.use("/api", currency);
 
 // Health check endpoint
 app.get("/health", (req, res) => {
@@ -60,7 +72,11 @@ app.use(errorHandler);
 
 const port = process.env.PORT || process.env.port || 8081;
 
-const server = app.listen(port, console.log(`Server started on port ${port}`));
+const server = app.listen(port, () => {
+  console.log(`Server started on port ${port}`);
+  // Log whether order emails are set up correctly
+  require("./src/Services/emailService").verifyEmailSetup();
+});
 
 server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {

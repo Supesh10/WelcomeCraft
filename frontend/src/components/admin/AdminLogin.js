@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { 
   User, 
   Lock, 
@@ -11,9 +11,13 @@ import {
   ArrowLeft 
 } from 'lucide-react';
 import ApiService from '../../services/apiService';
+import { getAdminToken, saveAdminSession } from '../../services/adminAuth';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Page the admin was sent here from, if any
+  const redirectTo = location.state?.from?.pathname || '/admin/dashboard';
   const [formData, setFormData] = useState({
     username: '',
     password: ''
@@ -44,12 +48,8 @@ const AdminLogin = () => {
 
       const response = await ApiService.adminLogin(formData.username, formData.password);
       
-      // Store token in localStorage
-      localStorage.setItem('admin_token', response.token);
-      localStorage.setItem('admin_user', JSON.stringify(response.admin));
-      
-      // Redirect to admin dashboard
-      navigate('/admin/dashboard');
+      saveAdminSession(response.token, response.admin);
+      navigate(redirectTo, { replace: true });
       
     } catch (err) {
       console.error('Login failed:', err);
@@ -59,8 +59,13 @@ const AdminLogin = () => {
     }
   };
 
+  // Already signed in
+  if (getAdminToken()) {
+    return <Navigate to={redirectTo} replace />;
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--cream)' }}>
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: 'var(--cream)' }}>
       <div className="w-full max-w-md">
         {/* Back Button */}
         <div className="mb-6">
@@ -178,7 +183,7 @@ const AdminLogin = () => {
         {/* Initialize Admin Notice */}
         <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-sm text-blue-700">
-            <strong>First time setup?</strong> If no admin account exists, the system will create one automatically on first login attempt.
+            <strong>First time setup?</strong> If no admin account exists yet, send a <code>POST</code> request to <code>/api/admin/init</code> once. It creates the admin from <code>ADMIN_USERNAME</code> and <code>ADMIN_PASSWORD</code> in the backend <code>.env</code>.
           </p>
         </div>
       </div>

@@ -3,31 +3,31 @@ require('dotenv').config();
 
 const Category = require('./src/Model/categoryModel');
 
+// materialType decides which product schema a category's products use
 const sampleCategories = [
   {
-    name: "Gold Statue",
-    description: "24k gold plated Buddhist statues with fixed pricing",
-    imageUrl: "https://example.com/gold-statue.jpg"
+    name: "Silver",
+    materialType: "silver",
+    description: "Silver statues and ornaments, in stock or custom made, priced on the current silver rate",
+    imageUrl: "https://example.com/silver.jpg"
   },
   {
-    name: "Silver Crafts", 
-    description: "Silver handicrafts with dynamic pricing based on current silver rates",
-    imageUrl: "https://example.com/silver-crafts.jpg"
+    name: "Gold",
+    materialType: "gold",
+    description: "Oxidized, color, half gold and full gold (electroplated or fire gold plated) statues",
+    imageUrl: "https://example.com/gold.jpg"
   },
   {
-    name: "Custom Silver",
-    description: "Custom silver products with weight ranges and personalization options",
-    imageUrl: "https://example.com/custom-silver.jpg"
+    name: "Copper",
+    materialType: "copper",
+    description: "Traditional copper Buddhist sculptures and statues",
+    imageUrl: "https://example.com/copper.jpg"
   },
   {
-    name: "Bronze Statues",
-    description: "Traditional bronze Buddhist statues and artifacts",
-    imageUrl: "https://example.com/bronze-statues.jpg"
-  },
-  {
-    name: "Thangka",
-    description: "Traditional Tibetan Buddhist paintings and scrolls",
-    imageUrl: "https://example.com/thangka.jpg"
+    name: "Bronze",
+    materialType: "bronze",
+    description: "Traditional bronze Buddhist sculptures and statues",
+    imageUrl: "https://example.com/bronze.jpg"
   }
 ];
 
@@ -76,7 +76,7 @@ async function initializeCategories() {
     const allCategories = await Category.find().sort({ name: 1 });
     console.log('\n📋 All categories:');
     allCategories.forEach((cat, index) => {
-      console.log(`   ${index + 1}. ${cat.name} (ID: ${cat._id})`);
+      console.log(`   ${index + 1}. ${cat.name} [${cat.materialType || 'no materialType'}] (ID: ${cat._id})`);
     });
 
     console.log('\n💡 You can now:');

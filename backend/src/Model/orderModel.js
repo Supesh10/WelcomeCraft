@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const customSpecificationSchema = require('./customSpecificationSchema');
 
 // Order Schema for managing customer orders
 const orderSchema = new mongoose.Schema({
@@ -34,7 +35,15 @@ const orderSchema = new mongoose.Schema({
   
   // Additional order information
   notes: { type: String },
-  customization: { type: String }, // For custom silver products
+  customization: { type: String }, // Free-text notes
+  customSpecification: customSpecificationSchema, // For custom silver products
+
+  // Whether the order emails went out: "sent", "skipped: ..." or "failed: ..."
+  emailStatus: {
+    admin: String,
+    customer: String,
+    at: Date
+  },
 
   // Order status: 'pending', 'contacted', 'confirmed', 'completed', 'cancelled'
   status: { 

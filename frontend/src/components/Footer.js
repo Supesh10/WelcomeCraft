@@ -1,78 +1,180 @@
-import React from 'react';
-import { MapPin, Phone, Clock, ArrowUp } from 'lucide-react';
+import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { MapPin, Phone, Clock, Mail, ArrowUp, Navigation, MessageCircle } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaTiktok } from "react-icons/fa";
+import ApiService from "../services/apiService";
+import { SHOP, whatsappLink } from "../lib/shopInfo";
+import logo from "../logo.jpg";
+import "../styles/layout.css";
+
+const SOCIAL_ICONS = [
+  { key: "facebook", label: "Facebook", Icon: FaFacebookF },
+  { key: "instagram", label: "Instagram", Icon: FaInstagram },
+  { key: "tiktok", label: "TikTok", Icon: FaTiktok },
+];
+
+
+const HELP_LINKS = [
+  { label: "About us", to: "/about" },
+  { label: "Contact us", to: "/contact" },
+  { label: "Your cart", to: "/cart" },
+  { label: "Custom orders", to: "/contact" },
+];
 
 export default function Footer() {
+  const [showTop, setShowTop] = useState(false);
+  const [categories, setCategories] = useState([]);
+
+  // Shop links come from the real categories
+  useEffect(() => {
+    ApiService.getAllCategories()
+      .then((data) => setCategories((data.categories || []).slice(0, 6)))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => setShowTop(window.scrollY > 400);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const social = SOCIAL_ICONS.filter(({ key }) => SHOP.social[key]);
+  const chat = whatsappLink("Hello Welcome Craft!");
+
   return (
-    <section className="bg-ggrey bg-opacity-35 py-16 px-6 relative">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-12">
-            {/* Store Info */}
-            <div className="col-span-1 flex flex-col justify-normal items-start">
-            <h2 className="text-4xl font-teachers font-semibold tracking-tight text-manta mb-8">OUR STORE</h2>
-            <div className="space-y-4 text-gray-600">
-                <div className="flex items-start space-x-3">
-                <MapPin className="w-10 h-12 pt-4 text-manta mt-1" />
-                <div className='mr-4'>
-                    <p className="text-lg font-body tracking-tight font-medium">Mahabuddhа Temple Road,</p>
-                    <p className="text-lg font-body tracking-tight font-medium">Patan Sundhara</p>
-                    <p className="text-lg font-body tracking-tight font-medium">Lalitpur, Nepal</p>
-                </div>
-                </div>
-                
-                <div className="flex items-start space-x-3 ml-2">
-                <Clock className="w-7 h-7 text-manta" />
-                <p className='text-lg font-body tracking-tight font-medium'>Sun-Fri 10am - 7pm</p>
-                </div>
-                
-                <div className="flex items-start space-x-3 ml-2 pt-2">
-                <Phone className="w-7 h-7 text-manta" />
-                <p className='text-lg font-body tracking-tight font-medium'>Contact No : 9981267123</p>
-                </div>
+    <footer className="wc-footer">
+      <div className="container mx-auto px-4 sm:px-6 pt-16 pb-10">
+        <div className="grid gap-12 lg:grid-cols-12">
+          {/* Brand + visit details */}
+          <div className="lg:col-span-5 space-y-6">
+            <Link to="/" className="flex items-center gap-3" style={{ textDecoration: "none" }}>
+              <span className="w-12 h-12 rounded-full overflow-hidden ring-1 ring-white/20 flex-shrink-0">
+                <img src={logo} alt="" className="w-full h-full object-cover" />
+              </span>
+              <span className="wc-brand-name" style={{ fontSize: "1.3rem" }}>
+                Welcome Craft
+              </span>
+            </Link>
+            <p className="text-sm leading-relaxed max-w-md">
+              Buddhist statues and ornaments in silver, gold finishes, copper and bronze, handcrafted by artisans in Patan.
+            </p>
+
+            <ul className="space-y-3 text-sm">
+              <li className="flex items-start gap-3">
+                <MapPin size={18} className="flex-shrink-0 mt-0.5" style={{ color: "var(--wc-marigold)" }} />
+                <span>{SHOP.addressLines.join(", ")}</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <Clock size={18} className="flex-shrink-0 mt-0.5" style={{ color: "var(--wc-marigold)" }} />
+                <span>{SHOP.hours}</span>
+              </li>
+              {SHOP.phone && (
+                <li className="flex items-start gap-3">
+                  <Phone size={18} className="flex-shrink-0 mt-0.5" style={{ color: "var(--wc-marigold)" }} />
+                  <a href={SHOP.phoneHref}>{SHOP.phone}</a>
+                </li>
+              )}
+              {SHOP.email && (
+                <li className="flex items-start gap-3">
+                  <Mail size={18} className="flex-shrink-0 mt-0.5" style={{ color: "var(--wc-marigold)" }} />
+                  <a href={`mailto:${SHOP.email}`} className="break-all">
+                    {SHOP.email}
+                  </a>
+                </li>
+              )}
+            </ul>
+
+            <div className="flex flex-wrap gap-3">
+              <a href={SHOP.mapsUrl} target="_blank" rel="noopener noreferrer" className="wc-btn wc-btn-gold wc-btn-sm">
+                <Navigation size={14} /> Directions
+              </a>
+              {chat && (
+                <a href={chat} target="_blank" rel="noopener noreferrer" className="wc-btn wc-btn-ghost wc-btn-sm">
+                  <MessageCircle size={14} /> WhatsApp
+                </a>
+              )}
             </div>
 
-            <a
-                href="https://www.google.com/maps/place/Welcome+Handicraft+Center/@27.6694709,85.3267291,17z/data=!4m6!3m5!1s0x39eb190024179ed7:0x86947efc747405ad!8m2!3d27.669319!4d85.327684!16s%2Fg%2F11y674bk3_?entry=ttu&g_ep=EgoyMDI1MDcxNS4xIKXMDSoASAFQAw%3D%3D"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-8 bg-white border border-gray-300 font-heading font-medium text-black px-6 py-3 flex items-center space-x-2 hover:bg-gray-50 transition-colors"
-            >
-                <span>DIRECTIONS</span>
-                <div className="w-4 h-4 border-2 border-gray-600 border-t-transparent rounded-full animate-spin"></div>
-            </a>
+            {social.length > 0 && (
+              <div className="flex gap-3">
+                {social.map(({ key, label, Icon }) => (
+                  <a key={key} href={SHOP.social[key]} target="_blank" rel="noopener noreferrer" aria-label={label} className="wc-footer-social">
+                    <Icon />
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
 
-            {/* Social Links */}
-      {/* Social Icons */}
-            <div className="mt-8 flex space-x-6 text-manta text-2xl">
-                <a href="https://www.facebook.com" target="_blank" rel="noopener noreferrer"><FaFacebookF /></a>
-                <a href="https://www.instagram.com" target="_blank" rel="noopener noreferrer"><FaInstagram /></a>
-                <a href="https://www.tiktok.com" target="_blank" rel="noopener noreferrer"><FaTiktok /></a>
+          {/* Link columns */}
+          <nav aria-label="Footer" className="lg:col-span-3 grid grid-cols-2 gap-8">
+            <div>
+              <h2>Shop</h2>
+              <ul className="space-y-2 text-sm">
+                <li>
+                  <Link to="/products" className="wc-footer-link">
+                    All products
+                  </Link>
+                </li>
+                {categories.map((c) => (
+                  <li key={c._id}>
+                    <Link to={`/products?category=${c._id}`} className="wc-footer-link">
+                      {c.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
+            <div>
+              <h2>Help</h2>
+              <ul className="space-y-2 text-sm">
+                {HELP_LINKS.map((l) => (
+                  <li key={l.label}>
+                    <Link to={l.to} className="wc-footer-link">
+                      {l.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
+          </nav>
 
-            {/* Map Embed */}
-            <div className="col-span-2 rounded-lg overflow-hidden w-full h-[450px] shadow-lg ">
-            <iframe
-                src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d3533.547418712462!2d85.3267291!3d27.6694709!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39eb190024179ed7%3A0x86947efc747405ad!2sWelcome%20Handicraft%20Center!5e0!3m2!1sen!2snp!4v1752839804910!5m2!1sen!2snp"
+          {/* Map */}
+          <div className="lg:col-span-4">
+            <h2>Find us</h2>
+            <div className="wc-footer-map h-64 lg:h-72">
+              <iframe
+                title="Map to Welcome Craft"
+                src={SHOP.mapsEmbedUrl}
                 width="100%"
                 height="100%"
                 allowFullScreen=""
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
-                className="w-full h-full"
-            ></iframe>
+                className="w-full h-full border-0"
+              ></iframe>
             </div>
+          </div>
         </div>
+      </div>
 
-        {/* Scroll to Top Button */}
-        <button
-            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="fixed bottom-6 right-6 p-3 rounded-full bg-manta text-white shadow-lg hover:bg-opacity-80 transition"
-        >
-            <ArrowUp size={20} />
+      <div className="wc-footer-bottom">
+        <div className="container mx-auto px-4 sm:px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <p>
+            © {new Date().getFullYear()} {SHOP.name}. All rights reserved.
+          </p>
+          <p style={{ color: "var(--wc-marigold)", letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 700, fontSize: "0.62rem" }}>
+            Handcrafted in Patan, Nepal
+          </p>
+        </div>
+      </div>
+
+      {showTop && (
+        <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="Back to top" className="wc-to-top">
+          <ArrowUp size={18} />
         </button>
-        </section>
-
+      )}
+    </footer>
   );
 }
-
-

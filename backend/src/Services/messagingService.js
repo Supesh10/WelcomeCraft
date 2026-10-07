@@ -15,8 +15,15 @@ const formatOrderMessage = (order, productDetails) => {
 *Name:* ${productDetails.title}
 *Category:* ${productDetails.category?.name || 'N/A'}
 ${productDetails.weightInTola ? `*Weight:* ${productDetails.weightInTola} tola` : ''}
-${productDetails.height ? `*Height:* ${productDetails.height}` : ''}
-${productDetails.customization ? `*Customization:* ${productDetails.customization}` : ''}
+${productDetails.dimensions?.height ? `*Height:* ${productDetails.dimensions.height} ${productDetails.dimensions.unit || ''}` : ''}
+${productDetails.silverType ? `*Type:* ${productDetails.silverType === 'custom' ? 'Custom silver' : 'Stock silver'}` : ''}
+${productDetails.goldFinish ? `*Gold finish:* ${productDetails.goldFinish.replace('_', ' ')}${productDetails.platingMethod ? ` (${productDetails.platingMethod.replace(/_/g, ' ')})` : ''}` : ''}
+${order.customSpecification?.preferredWeight ? `*Requested weight:* ${order.customSpecification.preferredWeight} tola` : ''}
+${order.customSpecification?.size?.height ? `*Requested size:* ${[order.customSpecification.size.height, order.customSpecification.size.width, order.customSpecification.size.length].filter(Boolean).join(' x ')} ${order.customSpecification.size.unit || ''}` : ''}
+${order.customSpecification?.design ? `*Design:* ${order.customSpecification.design}` : ''}
+${order.customSpecification?.designNotes ? `*Design notes:* ${order.customSpecification.designNotes}` : ''}
+${order.customSpecification?.estimatedCompletion?.latest ? `*Est. ready by:* ${new Date(order.customSpecification.estimatedCompletion.latest).toDateString()}` : ''}
+${order.customization ? `*Customization:* ${order.customization}` : ''}
 
 💰 *PRICING*
 ${order.totalPrice ? `*Total Price:* Rs. ${order.totalPrice}` : '*Price:* To be determined'}

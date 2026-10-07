@@ -1,7 +1,22 @@
 const Order = require("../Model/orderModel");
 const Product = require("../Model/productModel");
-const SilverPrice = require("../Model/silverPriceModel");
+const { calculatePrice, validateCustomSpecification } = require("../Services/pricingService");
+const jwt = require("jsonwebtoken");
 const { sendWhatsAppOrderNotification } = require("../Services/messagingService");
+const { sendOrderEmails } = require("../Services/emailService");
+
+// True when the request carries a valid admin token (orders entered from the
+// admin panel), so the shop isn't emailed about its own orders
+const isAdminRequest = (req) => {
+  const token = (req.header("Authorization") || "").replace("Bearer ", "");
+  if (!token) return false;
+  try {
+    jwt.verify(token, process.env.JWT_SECRET);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 // Create Order
 exports.createOrder = async (req, res) => {
@@ -14,7 +29,8 @@ exports.createOrder = async (req, res) => {
       productId,
       quantity = 1,
       notes,
-      customization
+      customization,
+      customSpecification
     } = req.body;
 
     // Basic validation
@@ -30,21 +46,15 @@ exports.createOrder = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    let silverPriceSnapshot = null;
-    let totalPrice = null;
-
-    // Calculate price for silver products
-    if (product.category.name === "Silver Crafts" || product.category.name === "Custom Silver") {
-      const todaySilverPrice = await SilverPrice.findOne().sort({ effectiveDate: -1 });
-      if (todaySilverPrice) {
-        silverPriceSnapshot = todaySilverPrice.pricePerTola;
-        if (product.weightInTola && product.makingCost) {
-          totalPrice = (silverPriceSnapshot * product.weightInTola + product.makingCost) * quantity;
-        }
-      }
-    } else if (product.constantPrice) {
-      totalPrice = product.constantPrice * quantity;
+    // Custom silver products need the customer's specification
+    const { errors, specification } = validateCustomSpecification(product, customSpecification);
+    if (errors.length) {
+      return res.status(400).json({ message: "Invalid custom specification", errors });
     }
+
+    const { price, silverRate } = await calculatePrice(product, { customSpecification: specification });
+    const silverPriceSnapshot = silverRate;
+    const totalPrice = price != null ? price * quantity : null;
 
     const newOrder = new Order({
       customerName,
@@ -55,6 +65,7 @@ exports.createOrder = async (req, res) => {
       quantity,
       notes,
       customization,
+      customSpecification: specification,
       silverPriceSnapshot,
       totalPrice,
       status: 'pending'
@@ -73,6 +84,14 @@ exports.createOrder = async (req, res) => {
       order: populatedOrder,
       whatsappNotification
     });
+
+    // Orders from the shop email the shop and the customer. Orders entered by
+    // an admin only email the customer, and only when notifyCustomer is set.
+    const byAdmin = isAdminRequest(req);
+    if (!byAdmin || String(req.body.notifyCustomer) === "true") {
+      populatedOrder.product = product; // with its category, for the email
+      sendOrderEmails([populatedOrder], { notifyAdmin: !byAdmin });
+    }
   } catch (error) {
     console.error("Order creation error:", error);
     res.status(500).json({ message: "Error creating order", error: error.message });
@@ -82,12 +101,21 @@ exports.createOrder = async (req, res) => {
 // Get All Orders
 exports.getOrders = async (req, res) => {
   try {
-    const { status, limit = 50, page = 1 } = req.query;
+    const { status, search, limit = 50, page = 1 } = req.query;
     
     // Build filter
     let filter = {};
     if (status) {
       filter.status = status;
+    }
+    if (search) {
+      // Escape regex characters so a search like "+977" works
+      const pattern = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      filter.$or = [
+        { customerName: pattern },
+        { customerPhone: pattern },
+        { customerEmail: pattern },
+      ];
     }
     
     // Calculate pagination
@@ -126,25 +154,83 @@ exports.getOrders = async (req, res) => {
   }
 };
 
-// Update Order
+// Get a single order
+exports.getOrderById = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.orderId).populate({
+      path: "product",
+      populate: { path: "category", select: "name materialType" },
+    });
+    if (!order) return res.status(404).json({ message: "Order not found" });
+    res.status(200).json({ order });
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching order", error: error.message });
+  }
+};
+
+// Update Order (admin). Product can't be changed; create a new order instead.
 exports.updateOrder = async (req, res) => {
   try {
-    const { status, quantity } = req.body;
-    const updateFields = {};
-    if (status) updateFields.status = status;
-    if (quantity) updateFields.quantity = quantity;
-
-    const order = await Order.findByIdAndUpdate(
-      req.params.orderId,
-      updateFields,
-      { new: true }
-    );
-
+    const order = await Order.findById(req.params.orderId).populate("product");
     if (!order) return res.status(404).json({ message: "Order not found" });
 
+    const editable = [
+      "customerName",
+      "customerPhone",
+      "customerEmail",
+      "customerAddress",
+      "notes",
+      "customization",
+      "status",
+    ];
+    for (const field of editable) {
+      if (req.body[field] !== undefined) order[field] = req.body[field];
+    }
+
+    const oldQuantity = order.quantity;
+    if (req.body.quantity !== undefined) {
+      const quantity = Number(req.body.quantity);
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        return res.status(400).json({ message: "Quantity must be a whole number of at least 1" });
+      }
+      order.quantity = quantity;
+    }
+
+    // Re-validate the custom specification against the product's limits
+    if (req.body.customSpecification !== undefined && order.product) {
+      const { errors, specification } = validateCustomSpecification(order.product, req.body.customSpecification);
+      if (errors.length) {
+        return res.status(400).json({ message: "Invalid custom specification", errors });
+      }
+      order.customSpecification = specification;
+      // Price custom pieces on the silver rate locked in when the order was placed
+      const { price } = await calculatePrice(order.product, {
+        silverRate: order.silverPriceSnapshot ?? undefined,
+        customSpecification: specification,
+      });
+      if (price != null) order.totalPrice = price * order.quantity;
+    } else if (order.quantity !== oldQuantity && order.totalPrice != null) {
+      // Keep the original unit price when only the quantity changes
+      order.totalPrice = (order.totalPrice / oldQuantity) * order.quantity;
+    }
+
+    // An explicit total from the admin wins (e.g. a negotiated price)
+    if (req.body.totalPrice !== undefined && req.body.totalPrice !== "") {
+      const total = Number(req.body.totalPrice);
+      if (Number.isNaN(total) || total < 0) {
+        return res.status(400).json({ message: "Total price must be a positive number" });
+      }
+      order.totalPrice = total;
+    }
+
+    await order.save();
+    await order.populate({ path: "product", populate: { path: "category", select: "name materialType" } });
     res.status(200).json({ message: "Order updated", order });
   } catch (error) {
-    res.status(500).json({ message: "Error updating order", error });
+    if (error.name === "ValidationError") {
+      return res.status(400).json({ message: error.message });
+    }
+    res.status(500).json({ message: "Error updating order", error: error.message });
   }
 };
 
@@ -156,6 +242,6 @@ exports.deleteOrder = async (req, res) => {
 
     res.status(200).json({ message: "Order deleted" });
   } catch (error) {
-    res.status(500).json({ message: "Error deleting order", error });
+    res.status(500).json({ message: "Error deleting order", error: error.message });
   }
 };

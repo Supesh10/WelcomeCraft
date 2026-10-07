@@ -1,29 +1,48 @@
 const Cart = require("../Model/cartModel");
 const Product = require("../Model/productModel");
-const { getCurrentSilverPrice } = require("../Services/silverPriceScraper");
+const Order = require("../Model/orderModel");
+const {
+  calculatePrice,
+  getLatestSilverRate,
+  validateCustomSpecification,
+  isCustomSilver,
+} = require("../Services/pricingService");
 const { generateCustomerOrderUrl } = require("../Services/messagingService");
+const { emailEnabled, sendOrderEmails } = require("../Services/emailService");
 
-// Helper function to calculate current product price
-async function calculateProductPrice(product) {
-  if (product.constantPrice) {
-    return product.constantPrice;
-  }
+// Re-price every item at today's silver rate and drop items whose product
+// was deleted or hidden. Returns what changed so the page can tell the customer.
+async function refreshCartPrices(cart) {
+  const silverRate = await getLatestSilverRate();
+  const priceChanges = [];
+  const removedItems = [];
+  let dirty = false;
 
-  if (
-    product.category.name === "Silver Crafts" ||
-    product.category.name === "Custom Silver"
-  ) {
-    if (product.weightInTola && product.makingCost) {
-      const silverPrice = await getCurrentSilverPrice();
-      if (silverPrice) {
-        return (
-          silverPrice.pricePerTola * product.weightInTola + product.makingCost
-        );
-      }
+  for (const item of [...cart.items]) {
+    const product = item.product;
+    if (!product || product.isActive === false) {
+      removedItems.push(product?.title || "A product that is no longer available");
+      cart.items.pull(item._id);
+      dirty = true;
+      continue;
+    }
+    const { price, silverRate: rate } = await calculatePrice(product, {
+      silverRate: silverRate ?? undefined,
+      customSpecification: item.customSpecification,
+    });
+    if (price != null && Math.abs(price - item.priceSnapshot) > 0.01) {
+      priceChanges.push({ itemId: item._id, previousPrice: item.priceSnapshot, price });
+      item.priceSnapshot = price;
+      item.silverPriceSnapshot = rate ?? item.silverPriceSnapshot;
+      dirty = true;
     }
   }
 
-  return 0; // Fallback
+  if (dirty) {
+    cart.recalculateTotals();
+    await cart.save();
+  }
+  return { priceChanges, removedItems };
 }
 
 // Get cart by session ID
@@ -36,6 +55,7 @@ getCart = async (req, res) => {
     }
 
     const cart = await Cart.findOrCreateBySession(sessionId);
+    const changes = await refreshCartPrices(cart);
 
     res.status(200).json({
       cart,
@@ -44,6 +64,7 @@ getCart = async (req, res) => {
         subtotal: cart.subtotal,
         calculatedTotal: cart.calculatedTotal,
       },
+      ...changes,
     });
   } catch (error) {
     console.error("Get cart error:", error);
@@ -57,7 +78,7 @@ getCart = async (req, res) => {
 addToCart = async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const { productId, quantity = 1, customization } = req.body;
+    const { productId, quantity = 1, customization, customSpecification } = req.body;
 
     if (!sessionId || !productId) {
       return res
@@ -71,31 +92,43 @@ addToCart = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // Calculate current price
-    const currentPrice = await calculateProductPrice(product);
+    // Custom silver products need the customer's specification
+    const { errors, specification } = validateCustomSpecification(
+      product,
+      customSpecification
+    );
+    if (errors.length) {
+      return res
+        .status(400)
+        .json({ message: "Invalid custom specification", errors });
+    }
 
-    // Get current silver price for snapshot
-    let silverPriceSnapshot = null;
-    if (
-      product.category.name === "Silver Crafts" ||
-      product.category.name === "Custom Silver"
-    ) {
-      const silverPrice = await getCurrentSilverPrice();
-      silverPriceSnapshot = silverPrice ? silverPrice.pricePerTola : null;
+    const { price, silverRate } = await calculatePrice(product, {
+      customSpecification: specification,
+    });
+    if (price == null) {
+      return res.status(400).json({
+        message: "Price for this product is not available right now",
+      });
     }
 
     // Find or create cart
     const cart = await Cart.findOrCreateBySession(sessionId);
 
-    // Check if product already exists in cart
-    const existingItemIndex = cart.items.findIndex(
-      (item) => item.product.toString() === productId.toString()
-    );
+    // Custom pieces are each made to their own spec, so never merge them
+    const existingItemIndex = isCustomSilver(product)
+      ? -1
+      : cart.items.findIndex(
+          (item) =>
+            (item.product._id || item.product).toString() ===
+            productId.toString()
+        );
 
     if (existingItemIndex >= 0) {
       // Update existing item quantity
       cart.items[existingItemIndex].quantity += quantity;
-      cart.items[existingItemIndex].priceSnapshot = currentPrice; // Update to current price
+      cart.items[existingItemIndex].priceSnapshot = price; // Update to current price
+      cart.items[existingItemIndex].silverPriceSnapshot = silverRate;
       if (customization) {
         cart.items[existingItemIndex].customization = customization;
       }
@@ -104,9 +137,10 @@ addToCart = async (req, res) => {
       cart.items.push({
         product: productId,
         quantity,
-        priceSnapshot: currentPrice,
-        silverPriceSnapshot,
+        priceSnapshot: price,
+        silverPriceSnapshot: silverRate,
         customization,
+        customSpecification: specification,
         addedAt: new Date(),
       });
     }
@@ -144,7 +178,7 @@ addToCart = async (req, res) => {
 updateCartItem = async (req, res) => {
   try {
     const { sessionId, itemId } = req.params;
-    const { quantity, customization } = req.body;
+    const { quantity, customization, customSpecification } = req.body;
 
     if (!sessionId || !itemId) {
       return res
@@ -156,7 +190,7 @@ updateCartItem = async (req, res) => {
       return res.status(400).json({ message: "Quantity must be positive" });
     }
 
-    const cart = await Cart.findOne({ sessionId, status: "active" });
+    const cart = await Cart.findOne({ sessionId });
     if (!cart) {
       return res.status(404).json({ message: "Cart not found" });
     }
@@ -176,6 +210,31 @@ updateCartItem = async (req, res) => {
       if (quantity) cart.items[itemIndex].quantity = quantity;
       if (customization !== undefined)
         cart.items[itemIndex].customization = customization;
+
+      // Re-validate and re-price when the custom specification changes
+      if (customSpecification !== undefined) {
+        const product = await Product.findById(cart.items[itemIndex].product);
+        if (!product) {
+          return res.status(404).json({ message: "Product not found" });
+        }
+        const { errors, specification } = validateCustomSpecification(
+          product,
+          customSpecification
+        );
+        if (errors.length) {
+          return res
+            .status(400)
+            .json({ message: "Invalid custom specification", errors });
+        }
+        const { price, silverRate } = await calculatePrice(product, {
+          customSpecification: specification,
+        });
+        cart.items[itemIndex].customSpecification = specification;
+        if (price != null) {
+          cart.items[itemIndex].priceSnapshot = price;
+          cart.items[itemIndex].silverPriceSnapshot = silverRate;
+        }
+      }
     }
 
     // Recalculate totals and save
@@ -212,7 +271,7 @@ removeFromCart = async (req, res) => {
   try {
     const { sessionId, itemId } = req.params;
 
-    const cart = await Cart.findOne({ sessionId, status: "active" });
+    const cart = await Cart.findOne({ sessionId });
     if (!cart) {
       return res.status(404).json({ message: "Cart not found" });
     }
@@ -258,7 +317,7 @@ clearCart = async (req, res) => {
   try {
     const { sessionId } = req.params;
 
-    const cart = await Cart.findOne({ sessionId, status: "active" });
+    const cart = await Cart.findOne({ sessionId });
     if (!cart) {
       return res.status(404).json({ message: "Cart not found" });
     }
@@ -301,7 +360,7 @@ updateCustomerInfo = async (req, res) => {
         .json({ message: "Customer name and phone are required" });
     }
 
-    const cart = await Cart.findOne({ sessionId, status: "active" }).populate({
+    const cart = await Cart.findOne({ sessionId }).populate({
       path: "items.product",
       populate: {
         path: "category",
@@ -323,7 +382,6 @@ updateCustomerInfo = async (req, res) => {
     cart.customerEmail = customerEmail;
     cart.customerAddress = customerAddress;
     cart.orderNotes = orderNotes;
-    cart.status = "checkout";
 
     await cart.save();
 
@@ -346,86 +404,121 @@ updateCustomerInfo = async (req, res) => {
   }
 };
 
-// Generate WhatsApp checkout URL
+// Place the order: saves one Order per cart item (so they show up in the
+// admin panel), empties the cart and returns a WhatsApp link for the shop.
 generateCheckoutUrl = async (req, res) => {
   try {
     const { sessionId } = req.params;
 
-    const cart = await Cart.findOne({ sessionId }).populate({
-      path: "items.product",
-      populate: {
-        path: "category",
-        select: "name description",
-      },
-    });
-
-    if (!cart) {
-      return res.status(404).json({ message: "Cart not found" });
-    }
+    const cart = await Cart.findOrCreateBySession(sessionId);
+    const { removedItems } = await refreshCartPrices(cart);
 
     if (cart.items.length === 0) {
-      return res.status(400).json({ message: "Cart is empty" });
+      return res.status(400).json({ message: "Cart is empty", removedItems });
+    }
+    if (!cart.customerName || !cart.customerPhone) {
+      return res.status(400).json({ message: "Customer name and phone are required" });
     }
 
-    // Generate comprehensive WhatsApp message
+    const orders = await Order.insertMany(
+      cart.items.map((item) => ({
+        customerName: cart.customerName,
+        customerPhone: cart.customerPhone,
+        customerEmail: cart.customerEmail,
+        customerAddress: cart.customerAddress,
+        product: item.product._id,
+        quantity: item.quantity,
+        silverPriceSnapshot: item.silverPriceSnapshot,
+        totalPrice: item.priceSnapshot * item.quantity,
+        notes: cart.orderNotes,
+        customization: item.customization,
+        customSpecification: item.customSpecification,
+        status: "pending",
+      }))
+    );
+
     let message = `🛒 *NEW ORDER FROM WELCOME-CRAFT* 🛒\n\n`;
+    message += `👤 *Customer Details:*\n`;
+    message += `Name: ${cart.customerName}\n`;
+    message += `Phone: ${cart.customerPhone}\n`;
+    if (cart.customerEmail) message += `Email: ${cart.customerEmail}\n`;
+    if (cart.customerAddress) message += `Address: ${cart.customerAddress}\n`;
 
-    if (cart.customerName) {
-      message += `👤 *Customer Details:*\n`;
-      message += `Name: ${cart.customerName}\n`;
-      message += `Phone: ${cart.customerPhone}\n`;
-      if (cart.customerEmail) message += `Email: ${cart.customerEmail}\n`;
-      if (cart.customerAddress)
-        message += `Address: ${cart.customerAddress}\n\n`;
-    }
-
-    message += `📦 *Order Items (${cart.totalItems} items):*\n`;
+    message += `\n📦 *Order Items (${cart.totalItems} items):*\n`;
 
     cart.items.forEach((item, index) => {
       message += `\n${index + 1}. *${item.product.title}*\n`;
-      message += `   Category: ${item.product.category.name}\n`;
+      message += `   Category: ${item.product.category?.name || "-"}\n`;
       message += `   Quantity: ${item.quantity}\n`;
-      message += `   Price: Rs. ${item.priceSnapshot} each\n`;
-      message += `   Subtotal: Rs. ${item.priceSnapshot * item.quantity}\n`;
+      message += `   Price: Rs. ${Math.round(item.priceSnapshot).toLocaleString()} each\n`;
+      message += `   Subtotal: Rs. ${Math.round(item.priceSnapshot * item.quantity).toLocaleString()}\n`;
+      const spec = item.customSpecification;
+      if (spec && spec.preferredWeight != null) {
+        message += `   *Custom Specification:*\n`;
+        message += `   - Weight: ${spec.preferredWeight} tola\n`;
+        if (spec.size && spec.size.height)
+          message += `   - Size: ${[spec.size.height, spec.size.width, spec.size.length].filter(Boolean).join(" x ")} ${spec.size.unit || ""}\n`;
+        if (spec.design) message += `   - Design: ${spec.design}\n`;
+        if (spec.designNotes) message += `   - Notes: ${spec.designNotes}\n`;
+        if (item.silverPriceSnapshot) message += `   - Silver rate: Rs. ${item.silverPriceSnapshot}/tola\n`;
+        if (spec.requiredBy) message += `   - Needed by: ${new Date(spec.requiredBy).toDateString()}\n`;
+        if (spec.estimatedCompletion && spec.estimatedCompletion.latest)
+          message += `   - Est. ready by: ${new Date(spec.estimatedCompletion.latest).toDateString()}\n`;
+      }
       if (item.customization) {
         message += `   *Custom Requirements:* ${item.customization}\n`;
       }
     });
 
-    message += `\n💰 *Total Amount: Rs. ${cart.subtotal}*\n`;
+    message += `\n💰 *Estimated Total: Rs. ${Math.round(cart.subtotal).toLocaleString()}*\n`;
 
     if (cart.orderNotes) {
       message += `\n📝 *Order Notes:*\n${cart.orderNotes}\n`;
     }
 
-    message += `\n⏰ Order Time: ${new Date().toLocaleString()}\n`;
+    message += `\n🧾 Order reference: ${orders.map((o) => String(o._id).slice(-6).toUpperCase()).join(", ")}\n`;
+    message += `⏰ Order Time: ${new Date().toLocaleString()}\n`;
     message += `\nPlease confirm this order and provide payment details.\n\nThank you! 🙏`;
 
-    // Generate WhatsApp URL
-    const adminPhone = process.env.WHATSAPP_PHONE || "977XXXXXXXXX";
-    const whatsappUrl = `https://wa.me/${adminPhone}?text=${encodeURIComponent(
-      message
-    )}`;
+    const adminPhone = (process.env.WHATSAPP_PHONE || "").replace(/[^\d]/g, "");
+    const whatsappUrl = adminPhone
+      ? `https://wa.me/${adminPhone}?text=${encodeURIComponent(message)}`
+      : null;
 
-    // Mark cart as ordered
-    cart.status = "ordered";
+    const orderSummary = {
+      totalItems: cart.totalItems,
+      subtotal: cart.subtotal,
+      customerName: cart.customerName,
+      customerPhone: cart.customerPhone,
+      orderIds: orders.map((o) => o._id),
+    };
+
+    // Products as ordered, for the emails (the cart is emptied below)
+    const orderedProducts = cart.items.map((item) => item.product);
+
+    // Orders are saved; empty the cart but keep the customer details for next time
+    cart.items = [];
+    cart.orderNotes = undefined;
+    cart.recalculateTotals();
     await cart.save();
 
     res.status(200).json({
-      message: "Checkout URL generated successfully",
+      message: "Order placed successfully",
       whatsappUrl,
-      orderSummary: {
-        totalItems: cart.totalItems,
-        subtotal: cart.subtotal,
-        customerName: cart.customerName,
-        customerPhone: cart.customerPhone,
-      },
+      orderSummary,
+      removedItems,
+      // Lets the confirmation page mention the email copy
+      customerEmailRequested: Boolean(cart.customerEmail) && emailEnabled(),
     });
+
+    // Email the shop and the customer after responding, so mail problems
+    // never hold up or fail the order. Errors are logged, not thrown.
+    sendOrderEmails(orders, { products: orderedProducts });
   } catch (error) {
-    console.error("Generate checkout URL error:", error);
+    console.error("Checkout error:", error);
     res
       .status(500)
-      .json({ message: "Error generating checkout URL", error: error.message });
+      .json({ message: "Error placing order", error: error.message });
   }
 };
 

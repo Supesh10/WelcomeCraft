@@ -1,28 +1,45 @@
-const API_BASE_URL =
-  process.env.REACT_APP_API_URL;
+import { getAdminToken, clearAdminSession } from "./adminAuth";
+
+export const API_BASE_URL =
+  process.env.REACT_APP_API_URL || "http://localhost:8081/api";
+
+// Base URL of the backend itself, for uploaded images (/uploads/...)
+export const SERVER_URL = API_BASE_URL.replace(/\/api\/?$/, "");
 
 class ApiService {
   // Helper method for making API calls
   static async makeRequest(endpoint, options = {}) {
     try {
       const url = `${API_BASE_URL}${endpoint}`;
+      const token = getAdminToken();
+      const isFormData = options.body instanceof FormData;
       const config = {
+        ...options,
         headers: {
-          "Content-Type": "application/json",
+          // Let the browser set the multipart boundary for FormData
+          ...(isFormData ? {} : { "Content-Type": "application/json" }),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...options.headers,
         },
-        ...options,
       };
 
       const response = await fetch(url, config);
+
+      // Admin session expired or was revoked
+      if (response.status === 401 && token) {
+        clearAdminSession();
+      }
 
       if (!response.ok) {
         const errorData = await response
           .json()
           .catch(() => ({ message: "Network error" }));
-        throw new Error(
+        const error = new Error(
           errorData.message || `HTTP error! status: ${response.status}`
         );
+        error.status = response.status;
+        error.details = errorData.errors;
+        throw error;
       }
 
       return await response.json();
@@ -40,6 +57,13 @@ class ApiService {
     if (filters.category) params.append("category", filters.category);
     if (filters.categoryName)
       params.append("categoryName", filters.categoryName);
+    if (filters.materialType) params.append("materialType", filters.materialType);
+    if (filters.search) params.append("search", filters.search);
+    if (filters.sort) params.append("sort", filters.sort);
+    if (filters.minPrice) params.append("minPrice", filters.minPrice);
+    if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
+    // Hidden products are only returned when asked for (admin panel)
+    if (filters.includeInactive) params.append("includeInactive", "true");
     if (filters.limit) params.append("limit", filters.limit);
     if (filters.page) params.append("page", filters.page);
 
@@ -63,20 +87,27 @@ class ApiService {
   static async getProductById(productId) {
       console.log(productId);
     return this.makeRequest(`/products/${productId}`);
-  
   }
 
+  // Accepts FormData (with images) or a plain object
   static async createProduct(productData) {
     return this.makeRequest("/products", {
       method: "POST",
-      body: JSON.stringify(productData),
+      body:
+        productData instanceof FormData
+          ? productData
+          : JSON.stringify(productData),
     });
   }
 
+  // Accepts FormData (with images) or a plain object
   static async updateProduct(productId, productData) {
     return this.makeRequest(`/products/${productId}`, {
       method: "PUT",
-      body: JSON.stringify(productData),
+      body:
+        productData instanceof FormData
+          ? productData
+          : JSON.stringify(productData),
     });
   }
 
@@ -87,19 +118,47 @@ class ApiService {
   }
 
   // Category API methods
-  static async getAllCategories(includeProductCount = false) {
-    const params = includeProductCount ? "?includeProductCount=true" : "";
-    return this.makeRequest(`/categories${params}`);
+  // includeInactive: count hidden products too (admin panel)
+  static async getAllCategories(includeProductCount = false, { includeInactive = false } = {}) {
+    const params = new URLSearchParams();
+    if (includeProductCount) params.append("includeProductCount", "true");
+    if (includeInactive) params.append("includeInactive", "true");
+    const query = params.toString();
+    return this.makeRequest(`/categories${query ? "?" + query : ""}`);
   }
 
   static async getCategoryById(categoryId) {
     return this.makeRequest(`/categories/${categoryId}`);
   }
 
+  static async getCategoryProductSchema(categoryId) {
+    return this.makeRequest(`/categories/${categoryId}/schema`);
+  }
+
+  // Accepts FormData (with an image file) or a plain object
   static async createCategory(categoryData) {
     return this.makeRequest("/categories", {
       method: "POST",
-      body: JSON.stringify(categoryData),
+      body:
+        categoryData instanceof FormData
+          ? categoryData
+          : JSON.stringify(categoryData),
+    });
+  }
+
+  static async updateCategory(categoryId, categoryData) {
+    return this.makeRequest(`/categories/${categoryId}`, {
+      method: "PUT",
+      body:
+        categoryData instanceof FormData
+          ? categoryData
+          : JSON.stringify(categoryData),
+    });
+  }
+
+  static async deleteCategory(categoryId) {
+    return this.makeRequest(`/categories/${categoryId}`, {
+      method: "DELETE",
     });
   }
 
@@ -154,8 +213,27 @@ class ApiService {
     });
   }
 
-  static async getAllOrders() {
-    return this.makeRequest("/orders");
+  static async getAllOrders(filters = {}) {
+    const params = new URLSearchParams();
+    if (filters.status) params.append("status", filters.status);
+    if (filters.search) params.append("search", filters.search);
+    if (filters.limit) params.append("limit", filters.limit);
+    if (filters.page) params.append("page", filters.page);
+    const queryString = params.toString();
+    return this.makeRequest(`/orders${queryString ? "?" + queryString : ""}`);
+  }
+
+  static async updateOrder(orderId, orderData) {
+    return this.makeRequest(`/orders/${orderId}`, {
+      method: "PUT",
+      body: JSON.stringify(orderData),
+    });
+  }
+
+  static async deleteOrder(orderId) {
+    return this.makeRequest(`/orders/${orderId}`, {
+      method: "DELETE",
+    });
   }
 
   static async getOrderById(orderId) {
@@ -183,12 +261,8 @@ class ApiService {
     });
   }
 
-  static async getAdminProfile(token) {
-    return this.makeRequest("/admin/profile", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+  static async getAdminProfile() {
+    return this.makeRequest("/admin/profile");
   }
 
   // Utility methods
@@ -211,27 +285,30 @@ class ApiService {
     return this.makeRequest(`/cart/${sessionId}`);
   }
 
-  static async addToCart(
-    sessionId,
-    productId,
-    quantity = 1,
-    customization = null
-  ) {
+  // options: { customization, customSpecification } (the latter is
+  // required for custom silver products)
+  static async addToCart(sessionId, productId, quantity = 1, options = {}) {
+    const { customization, customSpecification } =
+      typeof options === "string" || options === null
+        ? { customization: options }
+        : options;
     return this.makeRequest(`/cart/${sessionId}/add`, {
       method: "POST",
-      body: JSON.stringify({ productId, quantity, customization }),
+      body: JSON.stringify({
+        productId,
+        quantity,
+        customization: customization || undefined,
+        customSpecification,
+      }),
     });
   }
 
-  static async updateCartItem(
-    sessionId,
-    itemId,
-    quantity,
-    customization = null
-  ) {
+  // changes: { quantity, customization, customSpecification }; only the
+  // keys given are updated
+  static async updateCartItem(sessionId, itemId, changes = {}) {
     return this.makeRequest(`/cart/${sessionId}/item/${itemId}`, {
       method: "PUT",
-      body: JSON.stringify({ quantity, customization }),
+      body: JSON.stringify(changes),
     });
   }
 
@@ -247,10 +324,24 @@ class ApiService {
     });
   }
 
+  // customerInfo: { name, phone, email, address, orderNotes }
   static async updateCustomerInfo(sessionId, customerInfo) {
     return this.makeRequest(`/cart/${sessionId}/customer`, {
       method: "PUT",
-      body: JSON.stringify(customerInfo),
+      body: JSON.stringify({
+        customerName: customerInfo.name,
+        customerPhone: customerInfo.phone,
+        customerEmail: customerInfo.email,
+        customerAddress: customerInfo.address,
+        orderNotes: customerInfo.orderNotes,
+      }),
+    });
+  }
+
+  // Saves the cart as orders, empties it and returns { whatsappUrl, orderSummary }
+  static async placeOrder(sessionId) {
+    return this.makeRequest(`/cart/${sessionId}/checkout`, {
+      method: "POST",
     });
   }
 

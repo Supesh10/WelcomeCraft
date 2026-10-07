@@ -1,702 +1,587 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   ArrowLeft,
-  ShoppingCart,
+  ShoppingBag,
   MessageCircle,
-  Star,
-  Package,
+  MessagesSquare,
   Truck,
-  Shield,
-  Heart,
-  Share2,
-  Eye,
+  ShieldCheck,
   Minus,
   Plus,
   AlertCircle,
   CheckCircle,
-  Info,
-  TrendingUp,
+  Clock,
+  Gem,
+  Scale,
+  Ruler,
+  Sparkles,
+  Hammer,
+  Package,
+  ArrowRight,
+  BadgeCheck,
 } from "lucide-react";
 import ApiService from "../services/apiService";
+import { SHOP } from "../lib/shopInfo";
+import {
+  CustomPieceFields,
+  EMPTY_SPEC,
+  estimateCustomPrice,
+  validateCustomPiece,
+  valuesToSpec,
+} from "./CustomPieceForm";
+import {
+  isCustomSilver,
+  isSilver,
+  label,
+  priceLabel,
+  productImage,
+  productImages,
+  variantLabel,
+} from "../lib/productDisplay";
+import ProductTile from "./shop/ProductTile";
+import ProductGallery from "./shop/ProductGallery";
+import { CurrencyDisclaimer, NprEquivalent } from "./shop/CurrencyNote";
+import { useCurrency } from "../lib/currency";
+import "../styles/product.css";
+
+const WHATSAPP_PHONE = SHOP.whatsapp;
+
+const SpecRow = ({ name, value }) =>
+  value == null || value === "" ? null : (
+    <div className="wc-spec-row">
+      <dt>{name}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+
+const capitalize = (v) => (v ? v[0].toUpperCase() + v.slice(1) : "");
+
+// Three summary tiles under the title, from the product's real fields
+function summaryTiles(p) {
+  const opts = p.customOptions || {};
+  const dims = p.dimensions || {};
+  const height = dims.height ? `${dims.height} ${dims.unit || "inch"}` : null;
+  if (isCustomSilver(p)) {
+    return [
+      { Icon: Hammer, label: "Type", value: "Made to order" },
+      { Icon: Scale, label: "Weight", value: `${p.weightRange?.min}–${p.weightRange?.max} tola` },
+      { Icon: Clock, label: "Ready in", value: opts.productionTime ? `${opts.productionTime.minDays}–${opts.productionTime.maxDays} days` : "Ask us" },
+    ];
+  }
+  if (isSilver(p)) {
+    return [
+      { Icon: Sparkles, label: "Metal", value: "Silver" },
+      { Icon: Scale, label: "Weight", value: p.weightInTola ? `${p.weightInTola} tola` : "—" },
+      height ? { Icon: Ruler, label: "Height", value: height } : { Icon: Package, label: "Availability", value: p.stockQuantity > 0 ? `${p.stockQuantity} in stock` : "Ask us" },
+    ];
+  }
+  if (p.productType === "gold") {
+    return [
+      { Icon: Gem, label: "Finish", value: label(p.goldFinish) || "—" },
+      p.platingMethod
+        ? { Icon: Sparkles, label: "Plating", value: label(p.platingMethod) }
+        : { Icon: Hammer, label: "Base metal", value: capitalize(p.baseMetal) || "—" },
+      height ? { Icon: Ruler, label: "Height", value: height } : { Icon: Package, label: "Availability", value: p.stockQuantity > 0 ? `${p.stockQuantity} in stock` : "Ask us" },
+    ];
+  }
+  return [
+    { Icon: Hammer, label: "Material", value: capitalize(p.metal) || "—" },
+    { Icon: Sparkles, label: "Finish", value: capitalize(p.finish) || "—" },
+    height
+      ? { Icon: Ruler, label: "Height", value: height }
+      : { Icon: Scale, label: "Weight", value: p.weightInKg ? `${p.weightInKg} kg` : "—" },
+  ];
+}
 
 const SingleProductPage = () => {
+  const { format: formatMoney } = useCurrency();
   const { id } = useParams();
   const navigate = useNavigate();
 
   const [product, setProduct] = useState(null);
   const [relatedProducts, setRelatedProducts] = useState([]);
-  const [silverPrice, setSilverPrice] = useState(null);
-  const [goldPrice, setGoldPrice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [addingToCart, setAddingToCart] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [chatNote, setChatNote] = useState("");
   const [quantity, setQuantity] = useState(1);
-  const [customization, setCustomization] = useState("");
-  const [selectedImage, setSelectedImage] = useState(0);
+  const [spec, setSpec] = useState(EMPTY_SPEC);
+  const [specErrors, setSpecErrors] = useState({});
+  // Bumped to reset the custom form (and its design dropdown)
+  const [specFormKey, setSpecFormKey] = useState(0);
 
   const sessionId = ApiService.getSessionId();
 
-  // Fetch product data
-  const fetchProductData = async () => {
-    try {
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
       setLoading(true);
       setError("");
-
-      const [productResponse, silverPriceResponse, goldPriceResponse] =
-        await Promise.allSettled([
-          ApiService.getProductById(id),
-          ApiService.getTodaysSilverPrice(),
-          ApiService.getTodaysGoldPrice(),
-        ]);
-
-      // Handle product
-      if (productResponse.status === "fulfilled") {
-        const productData = productResponse.value;
-        setProduct(productData);
-
-        // Fetch related products from same category
-        if (productData.category) {
-          try {
-            const relatedResponse = await ApiService.getAllProducts({
-              categoryName: productData.category.name,
-              limit: 4,
-            });
-            const filtered =
-              relatedResponse.products?.filter((p) => p._id !== id) || [];
-            setRelatedProducts(filtered.slice(0, 3));
-          } catch (err) {
-            console.error("Failed to fetch related products:", err);
-          }
-        }
-      } else {
-        setError("Product not found");
-        return;
-      }
-
-      // Handle prices
-      if (silverPriceResponse.status === "fulfilled") {
-        setSilverPrice(silverPriceResponse.value);
-      }
-      if (goldPriceResponse.status === "fulfilled") {
-        setGoldPrice(goldPriceResponse.value);
-      }
-    } catch (err) {
-      console.error("Failed to fetch product:", err);
-      setError("Failed to load product. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Calculate current price
-  const calculatePrice = () => {
-    if (!product) return "Price on request";
-
-    if (product.constantPrice) {
-      return `Rs. ${(product.constantPrice * quantity).toLocaleString()}`;
-    }
-
-    if (silverPrice && product.weightInTola && product.makingCost) {
-      const totalPrice =
-        (silverPrice.pricePerTola * product.weightInTola + product.makingCost) *
-        quantity;
-      return `Rs. ${Math.round(totalPrice).toLocaleString()}`;
-    }
-
-    return "Price on request";
-  };
-
-  // Add to cart
-  const handleAddToCart = async () => {
-    try {
-      setAddingToCart(true);
-      setError("");
-
-      await ApiService.addToCart(
-        sessionId,
-        product._id,
-        quantity,
-        customization || null
-      );
-
-      setSuccess("Product added to cart successfully!");
-      window.dispatchEvent(new Event("storage")); // Update navbar cart count
-
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccess(""), 3000);
-    } catch (err) {
-      console.error("Failed to add to cart:", err);
-      setError("Failed to add to cart. Please try again.");
-    } finally {
-      setAddingToCart(false);
-    }
-  };
-
-  // Buy now (direct to checkout)
-  const handleBuyNow = async () => {
-    try {
-      setAddingToCart(true);
-      await ApiService.addToCart(
-        sessionId,
-        product._id,
-        quantity,
-        customization || null
-      );
-      navigate("/checkout");
-    } catch (err) {
-      console.error("Failed to buy now:", err);
-      setError("Failed to process order. Please try again.");
-    } finally {
-      setAddingToCart(false);
-    }
-  };
-
-  // Share product
-  const handleShare = async () => {
-    if (navigator.share && product) {
+      setQuantity(1);
+      setSpec(EMPTY_SPEC);
+      setSpecErrors({});
       try {
-        await navigator.share({
-          title: product.title,
-          text: `Check out this ${product.title} at Welcome Craft`,
-          url: window.location.href,
-        });
+        const { product: data } = await ApiService.getProductById(id);
+        if (cancelled) return;
+        setProduct(data);
+        setSpecFormKey((k) => k + 1);
+
+        const categoryId = data.category?._id;
+        if (categoryId) {
+          ApiService.getAllProducts({ category: categoryId, limit: 4 })
+            .then((res) => {
+              if (!cancelled) setRelatedProducts((res.products || []).filter((p) => p._id !== id).slice(0, 3));
+            })
+            .catch(() => {});
+        }
       } catch (err) {
-        // Fall back to copying URL
-        copyToClipboard();
+        if (!cancelled) setError(err.status === 404 ? "This product doesn't exist." : "Failed to load product. Please try again.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  const custom = isCustomSilver(product);
+  const images = productImages(product);
+  const options = product?.customOptions || {};
+  const silverRate = product?.pricing?.silverRate;
+
+  // Unit price: fixed / stock silver from the API, custom silver from the chosen weight
+  const unitPrice = useMemo(() => {
+    if (!product) return null;
+    if (custom) return estimateCustomPrice(product, spec, silverRate);
+    return product.pricing?.price ?? product.constantPrice ?? null;
+  }, [product, custom, spec, silverRate]);
+
+  const setSpecField = (field, value) => {
+    setSpec((s) => ({ ...s, [field]: value }));
+    setSpecErrors((er) => ({ ...er, [field]: undefined }));
+  };
+
+  function validateSpec() {
+    if (!custom) return true;
+    const e = validateCustomPiece(product, spec);
+    setSpecErrors(e);
+    return Object.keys(e).length === 0;
+  }
+
+  const buildSpec = () => (custom ? valuesToSpec(spec) : undefined);
+
+  async function addToCart() {
+    setError("");
+    if (!validateSpec()) {
+      setError("Please complete the custom order details below.");
+      document.getElementById("wc-custom-piece")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return false;
+    }
+    try {
+      setAddingToCart(true);
+      await ApiService.addToCart(sessionId, product._id, quantity, { customSpecification: buildSpec() });
+      window.dispatchEvent(new Event("storage")); // Update navbar cart count
+      return true;
+    } catch (err) {
+      const details = Array.isArray(err.details) ? `: ${err.details.join(", ")}` : "";
+      setError(`${err.message || "Failed to add to cart"}${details}`);
+      return false;
+    } finally {
+      setAddingToCart(false);
+    }
+  }
+
+  const handleAddToCart = async () => {
+    if (await addToCart()) {
+      setSuccess(custom ? "Your custom order was added to the cart." : "Added to cart.");
+      if (custom) {
+        setSpec(EMPTY_SPEC);
+        setSpecFormKey((k) => k + 1);
+      }
+      setTimeout(() => setSuccess(""), 3000);
+    }
+  };
+
+  const handleBuyNow = async () => {
+    if (await addToCart()) navigate("/checkout");
+  };
+
+  const handleShare = async () => {
+    const copy = () =>
+      navigator.clipboard?.writeText(window.location.href).then(() => {
+        setSuccess("Product link copied to clipboard!");
+        setTimeout(() => setSuccess(""), 2000);
+      });
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: product.title, url: window.location.href });
+      } catch {
+        copy();
       }
     } else {
-      copyToClipboard();
+      copy();
     }
   };
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(window.location.href).then(() => {
-      setSuccess("Product URL copied to clipboard!");
-      setTimeout(() => setSuccess(""), 2000);
-    });
-  };
-
-  useEffect(() => {
-    if (id) {
-      fetchProductData();
+  // Related products: same add-to-cart behaviour as the product list
+  const addRelatedToCart = async (p) => {
+    if (isCustomSilver(p)) {
+      navigate(`/product/${p._id}`);
+      return;
     }
-  }, [id]);
+    try {
+      await ApiService.addToCart(sessionId, p._id, 1);
+      window.dispatchEvent(new Event("storage"));
+      setSuccess(`${p.title} was added to your cart.`);
+    } catch (err) {
+      setError(err.message || "Couldn't add that to your cart.");
+    }
+    setTimeout(() => setSuccess(""), 3000);
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="spinner mb-4"></div>
-          <p style={{ color: "var(--stone-gray)" }}>Loading product...</p>
+      <div className="wc-page wc-pd min-h-screen">
+        <div className="container mx-auto px-4 sm:px-6 py-10 grid lg:grid-cols-2 gap-10" aria-hidden="true">
+          <div className="wc-skeleton" style={{ aspectRatio: "1 / 1" }} />
+          <div className="space-y-4">
+            <div className="wc-skeleton h-6 w-1/3" />
+            <div className="wc-skeleton h-12 w-3/4" />
+            <div className="wc-skeleton h-24" />
+            <div className="wc-skeleton h-40" />
+          </div>
         </div>
+        <p className="sr-only" role="status">
+          Loading product...
+        </p>
       </div>
     );
   }
 
-  if (error && !product) {
+  if (!product || product.isActive === false) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="wc-page wc-pd min-h-screen flex items-center justify-center px-4 py-20">
         <div className="text-center max-w-md mx-auto">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
-            <AlertCircle size={32} className="text-red-600" />
-          </div>
-          <h1
-            className="text-2xl font-bold mb-2"
-            style={{ color: "var(--dark-gray)" }}
+          <div
+            className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
+            style={{ backgroundColor: "var(--wc-maroon)", color: "var(--wc-marigold)" }}
           >
-            Product Not Found
-          </h1>
-          <p className="mb-6" style={{ color: "var(--stone-gray)" }}>
-            {error}
-          </p>
-          <div className="space-y-3">
-            <Link to="/products" className="btn btn-primary block">
-              Browse All Products
-            </Link>
-            <button
-              onClick={() => navigate(-1)}
-              className="btn btn-secondary block"
-            >
-              Go Back
-            </button>
+            <AlertCircle size={28} />
           </div>
+          <h1 className="text-3xl mb-2">Product not available</h1>
+          <p className="mb-6" style={{ color: "var(--wc-ink-muted)" }}>
+            {error || "This product is no longer available."}
+          </p>
+          <Link to="/products" className="wc-btn wc-btn-primary">
+            Browse the collection
+          </Link>
         </div>
       </div>
     );
   }
 
-  if (!product) return null;
+  const dims = product.dimensions || {};
+  const dimensionText = [dims.height && `H ${dims.height}`, dims.width && `W ${dims.width}`, dims.length && `L ${dims.length}`]
+    .filter(Boolean)
+    .join(" × ");
+  const time = options.productionTime;
+  const tiles = summaryTiles(product);
+  const priceBadge = custom ? "Made to order" : isSilver(product) ? "Live silver price" : "Fixed price";
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "var(--cream)" }}>
-      <div className="container mx-auto px-6 py-8">
+    <div className="wc-page wc-pd min-h-screen">
+      <div className="container mx-auto px-4 sm:px-6 py-8 lg:py-10">
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 mb-6 text-sm">
-          <Link
-            to="/"
-            className="hover:underline"
-            style={{ color: "var(--stone-gray)" }}
-          >
-            Home
-          </Link>
-          <span style={{ color: "var(--stone-gray)" }}>/</span>
-          <Link
-            to="/products"
-            className="hover:underline"
-            style={{ color: "var(--stone-gray)" }}
-          >
-            Products
-          </Link>
-          <span style={{ color: "var(--stone-gray)" }}>/</span>
-          <span style={{ color: "var(--dark-gray)" }}>{product.title}</span>
-        </div>
+        <nav aria-label="Breadcrumb" className="wc-crumbs flex flex-wrap items-center gap-2 mb-5">
+          <Link to="/">Home</Link>
+          <span aria-hidden="true">/</span>
+          <Link to="/products">Products</Link>
+          {product.category && (
+            <>
+              <span aria-hidden="true">/</span>
+              <Link to={`/products?category=${product.category._id}`}>{product.category.name}</Link>
+            </>
+          )}
+          <span aria-hidden="true">/</span>
+          <span aria-current="page" style={{ color: "var(--wc-ink)" }}>
+            {product.title}
+          </span>
+        </nav>
 
-        {/* Back Button */}
-        <div className="mb-6">
-          <button
-            onClick={() => navigate(-1)}
-            className="btn btn-secondary btn-sm"
-          >
-            <ArrowLeft size={16} />
-            Back
-          </button>
-        </div>
+        <button onClick={() => navigate(-1)} className="wc-btn wc-btn-outline wc-btn-sm mb-6">
+          <ArrowLeft size={14} />
+          Back
+        </button>
 
-        {/* Status Messages */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <p className="text-red-600">{error}</p>
+          <div className="wc-alert wc-alert-error mb-6" role="alert">
+            <AlertCircle size={18} className="flex-shrink-0" />
+            <p>{error}</p>
           </div>
         )}
-
         {success && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex items-center gap-3">
-            <CheckCircle size={20} className="text-green-600" />
-            <p className="text-green-600">{success}</p>
+          <div className="wc-alert wc-alert-success mb-6" role="status">
+            <CheckCircle size={18} className="flex-shrink-0" />
+            <p>
+              {success} <Link to="/cart">View cart</Link>
+            </p>
           </div>
         )}
 
-        <div className="grid lg:grid-cols-2 gap-12">
-          {/* Product Images */}
-          <div className="space-y-4">
-            <div className="card overflow-hidden">
-              <div className="aspect-square">
-                <img
-                  src={product.imageUrl}
-                  alt={product.title}
-                  className="w-full h-full object-cover"
-                />
+        <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-start">
+          {/* Gallery */}
+          <div className="lg:sticky lg:top-28">
+            <ProductGallery
+              key={product._id}
+              images={images.length ? images : [productImage(product)]}
+              canZoom={images.length > 0}
+              title={product.title}
+              chip={product.category?.name}
+              badge={isSilver(product) ? (custom ? "Made to order" : "Live price") : null}
+              onShare={handleShare}
+            />
+          </div>
+
+          {/* Details */}
+          <div className="space-y-6">
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                <span className="wc-eyebrow">{product.category?.name || "Welcome Craft"}</span>
+                <span className="wc-pd-pill">
+                  <BadgeCheck size={12} /> Handcrafted in Patan
+                </span>
               </div>
+              <h1 className="text-3xl sm:text-4xl leading-tight">{product.title}</h1>
+              {variantLabel(product) && (
+                <p className="wc-pd-subtitle mt-2">
+                  <Hammer size={14} style={{ color: "var(--wc-gold-deep)" }} />
+                  {[product.category?.name, variantLabel(product)].filter(Boolean).join(" · ")}
+                </p>
+              )}
             </div>
 
-            {/* Additional images would go here if product had multiple images */}
-            {product.additionalImages &&
-              product.additionalImages.length > 0 && (
-                <div className="grid grid-cols-4 gap-2">
-                  {product.additionalImages.map((image, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setSelectedImage(index + 1)}
-                      className={`card overflow-hidden ${
-                        selectedImage === index + 1 ? "ring-2 ring-saffron" : ""
-                      }`}
-                    >
-                      <img
-                        src={image}
-                        alt={`${product.title} ${index + 1}`}
-                        className="w-full aspect-square object-cover"
-                      />
-                    </button>
-                  ))}
+            <div className="wc-tiles">
+              {tiles.map(({ Icon, label: name, value }) => (
+                <div key={name} className="wc-tile">
+                  <Icon size={16} />
+                  <div className="wc-tile-label">{name}</div>
+                  <div className="wc-tile-value">{value}</div>
                 </div>
-              )}
-          </div>
-
-          {/* Product Details */}
-          <div className="space-y-6">
-            {/* Title and Category */}
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span
-                  className="px-3 py-1 rounded-full text-sm font-medium"
-                  style={{
-                    backgroundColor: "var(--light-saffron)",
-                    color: "var(--saffron)",
-                  }}
-                >
-                  {product.category?.name}
-                </span>
-                {product.category?.name.includes("Silver") && (
-                  <span className="px-2 py-1 bg-gray-100 text-xs rounded-full flex items-center gap-1">
-                    <TrendingUp size={12} />
-                    Live Price
-                  </span>
-                )}
-              </div>
-              <h1
-                className="text-3xl font-display font-bold"
-                style={{ color: "var(--dark-gray)" }}
-              >
-                {product.title}
-              </h1>
-
-              {/* Rating */}
-              <div className="flex items-center gap-2 mt-2">
-                <div className="flex items-center">
-                  {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      size={16}
-                      className="text-yellow-400 fill-current"
-                    />
-                  ))}
-                </div>
-                <span
-                  className="text-sm"
-                  style={{ color: "var(--stone-gray)" }}
-                >
-                  (4.8 rating)
-                </span>
-              </div>
+              ))}
             </div>
 
             {/* Price */}
-            <div className="p-4 bg-white rounded-lg border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p
-                    className="text-3xl font-bold"
-                    style={{ color: "var(--saffron)" }}
-                  >
-                    {calculatePrice()}
-                  </p>
-                  {product.weightInTola && (
-                    <p
-                      className="text-sm"
-                      style={{ color: "var(--stone-gray)" }}
-                    >
-                      Weight: {product.weightInTola} tola
-                    </p>
+            <div className="wc-panel">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span className="wc-price-big">
+                    {unitPrice != null
+                      ? formatMoney(unitPrice * quantity)
+                      : custom && product.pricing?.priceRange
+                      ? `${formatMoney(product.pricing.priceRange.min)} – ${formatMoney(product.pricing.priceRange.max)}`
+                      : priceLabel(product, formatMoney)}
+                  </span>
+                  {quantity > 1 && unitPrice != null && (
+                    <span className="text-sm" style={{ color: "var(--wc-ink-muted)" }}>
+                      / {formatMoney(unitPrice)} each
+                    </span>
                   )}
-                  {silverPrice && product.category?.name.includes("Silver") && (
-                    <p
-                      className="text-xs mt-1"
-                      style={{ color: "var(--stone-gray)" }}
-                    >
-                      Silver rate: Rs.{" "}
-                      {silverPrice.pricePerTola?.toLocaleString()}/tola
-                    </p>
-                  )}
+                  {unitPrice != null && <NprEquivalent npr={unitPrice * quantity} className="basis-full text-sm" />}
                 </div>
-                <div className="text-right">
-                  <button
-                    onClick={handleShare}
-                    className="btn btn-ghost btn-sm"
-                  >
-                    <Share2 size={16} />
-                  </button>
-                </div>
+                <span className="wc-price-badge">{priceBadge}</span>
               </div>
+              <p className="text-sm mt-3" style={{ color: "var(--wc-ink-muted)" }}>
+                {isSilver(product) && silverRate
+                  ? `Today's silver rate ${formatMoney(silverRate)}/tola × weight, plus making charge ${formatMoney(product.makingCost)}. `
+                  : ""}
+                {isSilver(product) && !silverRate ? "Today's silver rate isn't available yet. " : ""}
+                {custom
+                  ? unitPrice != null
+                    ? "Estimate for the weight you chose; the final price is confirmed with you."
+                    : "The price depends on the weight you choose below."
+                  : "The final price and delivery are confirmed with you before you pay."}
+              </p>
+              <CurrencyDisclaimer className="mt-2" />
             </div>
 
             {/* Description */}
             <div>
-              <h3
-                className="text-lg font-semibold mb-3"
-                style={{ color: "var(--dark-gray)" }}
-              >
-                Description
-              </h3>
-              <p
-                className="leading-relaxed"
-                style={{ color: "var(--stone-gray)" }}
-              >
+              <h2 className="wc-panel-title mb-2">About this piece</h2>
+              <p className="leading-relaxed whitespace-pre-line" style={{ color: "var(--wc-ink-muted)" }}>
                 {product.description}
               </p>
             </div>
 
-            {/* Product Specifications */}
-            <div>
-              <h3
-                className="text-lg font-semibold mb-3"
-                style={{ color: "var(--dark-gray)" }}
-              >
-                Specifications
-              </h3>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span style={{ color: "var(--stone-gray)" }}>Category:</span>
-                  <span style={{ color: "var(--dark-gray)" }}>
-                    {product.category?.name}
-                  </span>
-                </div>
-                {product.weightInTola && (
-                  <div className="flex justify-between">
-                    <span style={{ color: "var(--stone-gray)" }}>Weight:</span>
-                    <span style={{ color: "var(--dark-gray)" }}>
-                      {product.weightInTola} tola
-                    </span>
-                  </div>
+            {/* Specifications */}
+            <div className="wc-panel">
+              <h2 className="wc-panel-title mb-1">Specifications</h2>
+              <dl>
+                <SpecRow name="Category" value={product.category?.name} />
+                {product.productType === "gold" && (
+                  <>
+                    <SpecRow name="Gold finish" value={label(product.goldFinish)} />
+                    <SpecRow name="Plating" value={label(product.platingMethod)} />
+                    <SpecRow name="Base metal" value={capitalize(product.baseMetal)} />
+                  </>
                 )}
-                {product.height && (
-                  <div className="flex justify-between">
-                    <span style={{ color: "var(--stone-gray)" }}>Height:</span>
-                    <span style={{ color: "var(--dark-gray)" }}>
-                      {product.height}
-                    </span>
-                  </div>
+                {product.productType === "metal" && (
+                  <>
+                    <SpecRow name="Material" value={capitalize(product.metal)} />
+                    <SpecRow name="Finish" value={capitalize(product.finish)} />
+                  </>
                 )}
-                {product.makingCost && (
-                  <div className="flex justify-between">
-                    <span style={{ color: "var(--stone-gray)" }}>
-                      Making Cost:
-                    </span>
-                    <span style={{ color: "var(--dark-gray)" }}>
-                      Rs. {product.makingCost.toLocaleString()}
-                    </span>
-                  </div>
+                {isSilver(product) && !custom && <SpecRow name="Weight" value={product.weightInTola && `${product.weightInTola} tola`} />}
+                {custom && (
+                  <>
+                    <SpecRow name="Weight range" value={`${product.weightRange?.min}–${product.weightRange?.max} tola`} />
+                    {options.sizeRange && (options.sizeRange.minHeight != null || options.sizeRange.maxHeight != null) && (
+                      <SpecRow
+                        name="Height range"
+                        value={`${options.sizeRange.minHeight ?? "—"}–${options.sizeRange.maxHeight ?? "—"} ${options.sizeRange.unit || "inch"}`}
+                      />
+                    )}
+                    {time && <SpecRow name="Production time" value={`${time.minDays}–${time.maxDays} days`} />}
+                  </>
                 )}
-              </div>
+                {isSilver(product) && <SpecRow name="Making charge" value={product.makingCost ? formatMoney(product.makingCost) : null} />}
+                <SpecRow name="Weight" value={product.weightInKg && `${product.weightInKg} kg`} />
+                <SpecRow name="Dimensions" value={dimensionText && `${dimensionText} ${dims.unit || "inch"}`} />
+                {!custom && product.stockQuantity > 0 && <SpecRow name="Availability" value={`${product.stockQuantity} in stock`} />}
+              </dl>
             </div>
 
-            {/* Quantity Selection */}
-            <div>
-              <h3
-                className="text-lg font-semibold mb-3"
-                style={{ color: "var(--dark-gray)" }}
-              >
-                Quantity
-              </h3>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center border rounded-lg">
-                  <button
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    disabled={quantity <= 1}
-                    className="p-3 hover:bg-gray-100 disabled:opacity-50"
-                  >
-                    <Minus size={16} />
-                  </button>
-                  <span className="px-4 py-3 font-medium min-w-[3rem] text-center">
-                    {quantity}
-                  </span>
-                  <button
-                    onClick={() => setQuantity(quantity + 1)}
-                    className="p-3 hover:bg-gray-100"
-                  >
-                    <Plus size={16} />
-                  </button>
+            {/* Custom silver order details */}
+            {custom && (
+              <div id="wc-custom-piece" className="wc-panel space-y-4" style={{ scrollMarginTop: "7rem" }}>
+                <div>
+                  <h2 className="wc-panel-title">
+                    <Sparkles size={14} /> Your custom piece
+                  </h2>
+                  {time && (
+                    <p className="text-sm flex items-center gap-1 mt-1" style={{ color: "var(--wc-ink-muted)" }}>
+                      <Clock size={14} /> Made to order in {time.minDays}–{time.maxDays} days
+                    </p>
+                  )}
                 </div>
-                <span
-                  className="text-sm"
-                  style={{ color: "var(--stone-gray)" }}
-                >
-                  Total: {calculatePrice()}
-                </span>
-              </div>
-            </div>
-
-            {/* Customization */}
-            {product.isCustomizable && (
-              <div>
-                <h3
-                  className="text-lg font-semibold mb-3"
-                  style={{ color: "var(--dark-gray)" }}
-                >
-                  Customization
-                </h3>
-                <textarea
-                  value={customization}
-                  onChange={(e) => setCustomization(e.target.value)}
-                  placeholder="Add your customization requirements..."
-                  rows={4}
-                  className="input-field w-full resize-none"
+                <CustomPieceFields
+                  key={`${product._id}-${specFormKey}`}
+                  product={product}
+                  values={spec}
+                  errors={specErrors}
+                  onChange={setSpecField}
                 />
-                <p
-                  className="text-xs mt-2"
-                  style={{ color: "var(--stone-gray)" }}
-                >
-                  Describe any specific requirements or modifications you'd like
-                </p>
               </div>
             )}
 
-            {/* Action Buttons */}
+            {/* Quantity + actions */}
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={handleAddToCart}
-                  disabled={addingToCart}
-                  className="btn btn-secondary"
-                >
-                  {addingToCart ? (
-                    <>
-                      <div className="spinner-sm mr-2"></div>
-                      Adding...
-                    </>
-                  ) : (
-                    <>
-                      <ShoppingCart size={20} className="mr-2" />
-                      Add to Cart
-                    </>
-                  )}
-                </button>
-
-                <button
-                  onClick={handleBuyNow}
-                  disabled={addingToCart}
-                  className="btn btn-primary"
-                >
-                  {addingToCart ? (
-                    <>
-                      <div className="spinner-sm mr-2"></div>
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <MessageCircle size={20} className="mr-2" />
-                      Buy Now
-                    </>
-                  )}
-                </button>
+              <div className="flex items-center gap-4">
+                <span className="wc-panel-title">Quantity</span>
+                <div className="wc-stepper">
+                  <button onClick={() => setQuantity(Math.max(1, quantity - 1))} disabled={quantity <= 1} aria-label="Decrease quantity">
+                    <Minus size={16} />
+                  </button>
+                  <span aria-live="polite">{quantity}</span>
+                  <button onClick={() => setQuantity(quantity + 1)} aria-label="Increase quantity">
+                    <Plus size={16} />
+                  </button>
+                </div>
               </div>
 
-              {/* WhatsApp Direct Contact */}
-              <button
-                onClick={() => {
-                  const message = `Hi! I'm interested in ${product.title}. Could you provide more details?`;
-                  const whatsappUrl = `https://wa.me/${
-                    process.env.REACT_APP_WHATSAPP_NUMBER
-                  }?text=${encodeURIComponent(message)}`;
-                  window.open(whatsappUrl, "_blank");
-                }}
-                className="btn btn-outline w-full text-green-600 border-green-600 hover:bg-green-600"
-              >
-                <MessageCircle size={20} className="mr-2" />
-                Chat on WhatsApp
+              <button onClick={handleAddToCart} disabled={addingToCart} className="wc-btn wc-btn-primary w-full" style={{ padding: "1rem 1.5rem" }}>
+                <ShoppingBag size={16} />
+                {addingToCart ? "Adding..." : `Add to cart${unitPrice != null ? ` · ${formatMoney(unitPrice * quantity)}` : ""}`}
+              </button>
+              <div className="grid grid-cols-2 gap-3">
+                {WHATSAPP_PHONE ? (
+                  <a
+                    href={`https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(
+                      `Hi! I'm interested in "${product.title}" (${window.location.href}). Could you share more details?`
+                    )}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="wc-btn wc-btn-whatsapp"
+                    aria-label="Chat on WhatsApp"
+                  >
+                    <MessageCircle size={15} />
+                    <span className="hidden sm:inline">Chat on</span> WhatsApp
+                  </a>
+                ) : (
+                  <button type="button" onClick={() => setChatNote("WhatsApp")} className="wc-btn wc-btn-whatsapp" aria-label="Chat on WhatsApp">
+                    <MessageCircle size={15} />
+                    <span className="hidden sm:inline">Chat on</span> WhatsApp
+                  </button>
+                )}
+                <button type="button" onClick={() => setChatNote("WeChat")} className="wc-btn wc-btn-wechat" aria-label="Chat on WeChat">
+                  <MessagesSquare size={15} />
+                  <span className="hidden sm:inline">Chat on</span> WeChat
+                </button>
+              </div>
+              {chatNote && (
+                <p className="text-xs text-center" role="status" style={{ color: "var(--wc-ink-muted)" }}>
+                  {chatNote} chat is coming soon.
+                  {SHOP.phone ? (
+                    <>
+                      {" "}
+                      For now, call us on{" "}
+                      <a href={SHOP.phoneHref} className="font-semibold underline" style={{ color: "var(--wc-crimson)" }}>
+                        {SHOP.phone}
+                      </a>
+                      .
+                    </>
+                  ) : null}
+                </p>
+              )}
+              <button onClick={handleBuyNow} disabled={addingToCart} className="wc-btn wc-btn-soft w-full">
+                <ArrowRight size={14} />
+                Buy now
               </button>
             </div>
 
-            {/* Trust Indicators */}
-            <div className="grid grid-cols-3 gap-4 pt-6 border-t">
-              <div className="text-center">
-                <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-blue-100 flex items-center justify-center">
-                  <Shield size={20} className="text-blue-600" />
-                </div>
-                <p
-                  className="text-xs font-medium"
-                  style={{ color: "var(--dark-gray)" }}
-                >
-                  Authentic
-                </p>
-                <p className="text-xs" style={{ color: "var(--stone-gray)" }}>
-                  Genuine products
-                </p>
-              </div>
-
-              <div className="text-center">
-                <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-green-100 flex items-center justify-center">
-                  <Truck size={20} className="text-green-600" />
-                </div>
-                <p
-                  className="text-xs font-medium"
-                  style={{ color: "var(--dark-gray)" }}
-                >
-                  Safe Delivery
-                </p>
-                <p className="text-xs" style={{ color: "var(--stone-gray)" }}>
-                  Secure packaging
-                </p>
-              </div>
-
-              <div className="text-center">
-                <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-purple-100 flex items-center justify-center">
-                  <MessageCircle size={20} className="text-purple-600" />
-                </div>
-                <p
-                  className="text-xs font-medium"
-                  style={{ color: "var(--dark-gray)" }}
-                >
-                  Direct Contact
-                </p>
-                <p className="text-xs" style={{ color: "var(--stone-gray)" }}>
-                  Personal service
-                </p>
-              </div>
+            {/* Guarantee */}
+            <div className="wc-panel">
+              <h2 className="wc-panel-title mb-3">
+                <ShieldCheck size={14} /> Buying from Welcome Craft
+              </h2>
+              <ul className="wc-guarantee space-y-2">
+                <li>
+                  <BadgeCheck size={15} /> Handcrafted by artisans in Patan, Lalitpur.
+                </li>
+                <li>
+                  <Package size={15} /> Every piece is carefully packed for safe delivery.
+                </li>
+                <li>
+                  <Truck size={15} /> No online payment: we confirm the final price, payment and delivery with you.
+                </li>
+              </ul>
             </div>
           </div>
         </div>
 
-        {/* Related Products */}
+        {/* Related */}
         {relatedProducts.length > 0 && (
-          <div className="mt-16">
-            <div className="flex items-center justify-between mb-8">
-              <h2
-                className="text-2xl font-display font-bold"
-                style={{ color: "var(--dark-gray)" }}
-              >
-                Related Products
-              </h2>
-              <Link to="/products" className="btn btn-secondary btn-sm">
-                View All
+          <section className="mt-16 lg:mt-20">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-8">
+              <div>
+                <span className="wc-eyebrow">You may also like</span>
+                <h2 className="text-3xl mt-1">
+                  More from <span className="wc-accent">{product.category?.name}</span>
+                </h2>
+              </div>
+              <Link to={`/products?category=${product.category?._id}`} className="wc-text-link text-xs font-extrabold tracking-[0.14em] uppercase" style={{ color: "var(--wc-maroon)" }}>
+                View all <ArrowRight size={12} className="inline" />
               </Link>
             </div>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {relatedProducts.map((relatedProduct) => (
-                <Link
-                  key={relatedProduct._id}
-                  to={`/product/${relatedProduct._id}`}
-                  className="card group cursor-pointer"
-                >
-                  <div className="relative overflow-hidden">
-                    <img
-                      src={
-                        relatedProduct.imageUrl || "/api/placeholder/300/300"
-                      }
-                      alt={relatedProduct.title}
-                      className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-300" />
-                  </div>
-                  <div className="card-body">
-                    <h3
-                      className="font-semibold mb-1 truncate"
-                      style={{ color: "var(--dark-gray)" }}
-                    >
-                      {relatedProduct.title}
-                    </h3>
-                    <p
-                      className="text-sm mb-2"
-                      style={{ color: "var(--stone-gray)" }}
-                    >
-                      {relatedProduct.category?.name}
-                    </p>
-                    <div className="flex items-center justify-between">
-                      <span
-                        className="font-bold"
-                        style={{ color: "var(--saffron)" }}
-                      >
-                        {relatedProduct.constantPrice
-                          ? `Rs. ${relatedProduct.constantPrice.toLocaleString()}`
-                          : "Live pricing"}
-                      </span>
-                      <div className="flex items-center">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            size={12}
-                            className="text-yellow-400 fill-current"
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </Link>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {relatedProducts.map((p) => (
+                <ProductTile key={p._id} product={p} light onAddToCart={addRelatedToCart} />
               ))}
             </div>
-          </div>
+          </section>
         )}
       </div>
     </div>

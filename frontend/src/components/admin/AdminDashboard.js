@@ -8,7 +8,6 @@ import {
   Users,
   ShoppingCart,
   DollarSign,
-  Calendar,
   RefreshCw,
   LogOut,
   Settings,
@@ -16,6 +15,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import ApiService from '../../services/apiService';
+import { clearAdminSession, getAdminUser } from '../../services/adminAuth';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -35,22 +35,9 @@ const AdminDashboard = () => {
     goldHistory: []
   });
 
-  // Check admin authentication
-  const checkAuth = () => {
-    const token = localStorage.getItem('admin_token');
-    const adminUser = localStorage.getItem('admin_user');
-    
-    if (!token || !adminUser) {
-      navigate('/admin/login');
-      return false;
-    }
-    return true;
-  };
-
-  // Logout handler
+  // RequireAdmin has already verified the session
   const handleLogout = () => {
-    localStorage.removeItem('admin_token');
-    localStorage.removeItem('admin_user');
+    clearAdminSession();
     navigate('/admin/login');
   };
 
@@ -160,12 +147,10 @@ const AdminDashboard = () => {
   };
 
   useEffect(() => {
-    if (checkAuth()) {
-      fetchDashboardData();
-    }
-  }, []);
+    fetchDashboardData();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const adminUser = JSON.parse(localStorage.getItem('admin_user') || '{}');
+  const adminUser = getAdminUser() || {};
 
   if (loading) {
     return (
@@ -526,6 +511,12 @@ const AdminDashboard = () => {
               className="btn btn-secondary"
             >
               Add Category
+            </button>
+            <button
+              onClick={() => navigate('/admin/orders/new')}
+              className="btn btn-secondary"
+            >
+              Create Order
             </button>
             <button
               onClick={() => navigate('/admin/customers')}

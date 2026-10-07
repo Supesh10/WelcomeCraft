@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const customSpecificationSchema = require('./customSpecificationSchema');
 
 // Cart Item Schema for individual products in cart
 const cartItemSchema = new mongoose.Schema({
@@ -21,8 +22,9 @@ const cartItemSchema = new mongoose.Schema({
     type: Number // Silver price per tola when added (for silver products)
   },
   customization: {
-    type: String // Custom requirements for the product
+    type: String // Free-text notes for the product
   },
+  customSpecification: customSpecificationSchema, // Custom silver products
   addedAt: {
     type: Date,
     default: Date.now
@@ -102,29 +104,33 @@ cartSchema.methods.recalculateTotals = function() {
   return this;
 };
 
-// Static method to find or create cart by session
+// Static method to find or create cart by session.
+// sessionId is unique, so there is exactly one cart per session; a cart
+// left in another status is reopened rather than creating a duplicate.
 cartSchema.statics.findOrCreateBySession = async function(sessionId) {
-  let cart = await this.findOne({ sessionId, status: 'active' })
-    .populate({
-      path: 'items.product',
-      populate: {
-        path: 'category',
-        select: 'name'
-      }
-    });
-    
+  const populate = {
+    path: 'items.product',
+    populate: {
+      path: 'category',
+      select: 'name materialType'
+    }
+  };
+
+  let cart = await this.findOne({ sessionId }).populate(populate);
+
   if (!cart) {
-    cart = await this.create({ sessionId });
-    // Populate after creation
-    cart = await this.findById(cart._id).populate({
-      path: 'items.product',
-      populate: {
-        path: 'category',
-        select: 'name'
-      }
-    });
+    try {
+      await this.create({ sessionId });
+    } catch (error) {
+      // Two requests created it at the same time; use the existing one
+      if (error.code !== 11000) throw error;
+    }
+    cart = await this.findOne({ sessionId }).populate(populate);
+  } else if (cart.status !== 'active') {
+    cart.status = 'active';
+    await cart.save();
   }
-  
+
   return cart;
 };
 

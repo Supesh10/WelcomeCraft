@@ -1,332 +1,131 @@
-import React, { useState, useEffect } from "react";
-import {
-  ShoppingCart,
-  Eye,
-  Star,
-  ArrowRight,
-  Sparkles,
-  TrendingUp,
-  Award,
-  Users,
-  Package,
-} from "lucide-react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
+import { ArrowRight, Gem, Sparkles, Flame, Package } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import ApiService from "../services/apiService";
+import { imageUrl, isCustomSilver } from "../lib/productDisplay";
+import LivePriceCard from "./shop/LivePriceCard";
+import ProductTile from "./shop/ProductTile";
+import "../styles/home.css";
+
+const HERO_IMAGE = `${process.env.PUBLIC_URL}/images/hero-tara.webp`;
+
+const MATERIAL_ICONS = { gold: Gem, silver: Sparkles, bronze: Flame, copper: Flame };
+
+const HIGHLIGHTS = [
+  {
+    title: "Authentic Crafts",
+    text: "Handcrafted by skilled artisans in Patan following traditional methods.",
+  },
+  {
+    title: "Live Pricing",
+    text: "Silver pieces are priced on the day's silver rate, so you always see a fair, current price.",
+  },
+  {
+    title: "Trusted Service",
+    text: "Direct communication and personalised service — we confirm every order with you.",
+  },
+];
 
 const HomePage = () => {
-  const [currentSlide, setCurrentSlide] = useState(0);
+  const navigate = useNavigate();
   const [featuredProducts, setFeaturedProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [silverPrice, setSilverPrice] = useState(null);
   const [goldPrice, setGoldPrice] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [toast, setToast] = useState("");
+  const toastTimer = useRef(null);
 
-  // Fetch data on component mount
   useEffect(() => {
     const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [
-          productsResponse,
-          categoriesResponse,
-          silverPriceResponse,
-          goldPriceResponse,
-        ] = await Promise.allSettled([
-          ApiService.getAllProducts({ limit: 8 }),
-          ApiService.getAllCategories(true),
-          ApiService.getTodaysSilverPrice(),
-          ApiService.getTodaysGoldPrice(),
-        ]);
-
-        // Handle products
-        if (productsResponse.status === "fulfilled") {
-          setFeaturedProducts(productsResponse.value.products || []);
-        }
-
-        // Handle categories
-        if (categoriesResponse.status === "fulfilled") {
-          setCategories(categoriesResponse.value.categories || []);
-        }
-
-        // Handle silver price
-        if (silverPriceResponse.status === "fulfilled") {
-          setSilverPrice(silverPriceResponse.value);
-        }
-
-        if (goldPriceResponse.status === "fulfilled") {
-          setGoldPrice(goldPriceResponse.value);
-        }
-      } catch (err) {
-        setError("Failed to load data");
-        console.error("HomePage data fetch error:", err);
-      } finally {
-        setLoading(false);
-      }
+      const [productsRes, categoriesRes, silverRes, goldRes] = await Promise.allSettled([
+        ApiService.getAllProducts({ limit: 8 }),
+        ApiService.getAllCategories(true),
+        ApiService.getTodaysSilverPrice(),
+        ApiService.getTodaysGoldPrice(),
+      ]);
+      if (productsRes.status === "fulfilled") setFeaturedProducts(productsRes.value.products || []);
+      if (categoriesRes.status === "fulfilled") setCategories(categoriesRes.value.categories || []);
+      if (silverRes.status === "fulfilled") setSilverPrice(silverRes.value);
+      if (goldRes.status === "fulfilled") setGoldPrice(goldRes.value);
+      setLoading(false);
     };
-
     fetchData();
+    return () => clearTimeout(toastTimer.current);
   }, []);
 
+  const showToast = (message) => {
+    setToast(message);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 3000);
+  };
+
   const addToCart = async (product) => {
+    // Custom pieces need the customer's weight and design first
+    if (isCustomSilver(product)) {
+      navigate(`/product/${product._id}`);
+      return;
+    }
     try {
-      const sessionId = ApiService.getSessionId();
-      await ApiService.addToCart(sessionId, product._id, 1);
-      // You could add a toast notification here
-      console.log("Added to cart:", product.title);
-      // Trigger storage event to update navbar cart count
-      window.dispatchEvent(new Event("storage"));
+      await ApiService.addToCart(ApiService.getSessionId(), product._id, 1);
+      window.dispatchEvent(new Event("storage")); // Update navbar cart count
+      showToast(`${product.title} was added to your cart.`);
     } catch (error) {
-      console.error("Add to cart error:", error);
+      showToast(error.message || "Couldn't add that to your cart. Please try again.");
     }
   };
-
-  const calculatePrice = (product) => {
-    if (product.constantPrice) {
-      return `Rs. ${product.constantPrice.toLocaleString()}`;
-    }
-
-    if (silverPrice && product.weightInTola && product.makingCost) {
-      const totalPrice =
-        silverPrice.pricePerTola * product.weightInTola + product.makingCost;
-      return `Rs. ${Math.round(totalPrice).toLocaleString()}`;
-    }
-
-    return "Price on request";
-  };
-
-  const nextSlide = () => {
-    setCurrentSlide(
-      (prev) => (prev + 1) % Math.max(1, featuredProducts.length - 2)
-    );
-  };
-
-  const prevSlide = () => {
-    setCurrentSlide(
-      (prev) =>
-        (prev - 1 + Math.max(1, featuredProducts.length - 2)) %
-        Math.max(1, featuredProducts.length - 2)
-    );
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="spinner mb-4"></div>
-          <p style={{ color: "var(--stone-gray)" }}>
-            Loading...
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen">
-      {/* Hero Section */}
-      <section
-        className="relative py-8 px-6 overflow-hidden"
-        style={{
-          background:
-            "linear-gradient(135deg, var(--cream) 0%, var(--light-golden) 100%)",
-        }}
-      >
-        <div className="pattern-lotus absolute inset-0"></div>
-        <div className="container mx-auto relative z-10">
+    <div className="wc-page wc-home min-h-screen">
+      {/* Hero */}
+      <section className="wc-hero px-4 sm:px-6 py-16 lg:py-24 overflow-hidden" style={{ backgroundImage: `url(${HERO_IMAGE})` }}>
+        <div className="container mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-8">
-              <div className="space-y-4">
-                <div className="flex items-center space-x-2 mb-4">
-                  <span className="om-symbol">🕉</span>
-                  <span
-                    style={{
-                      color: "var(--saffron)",
-                      fontSize: "1.1rem",
-                      fontWeight: "500",
-                    }}
-                  >
-                    Authentic Buddhist Crafts
-                  </span>
-                </div>
-                <h1 className="text-3xl lg:text-4xl font-display font-bold leading-snug">
-                  Discover Sacred
-                  <span className="block" style={{ color: "var(--saffron)" }}>
-                    Buddhist Handicrafts
-                  </span>
+              <div className="space-y-5">
+                <span className="wc-eyebrow">
+                  <span aria-hidden="true">🕉</span> Handcrafted in Patan · Lalitpur
+                </span>
+                <h1 className="text-4xl sm:text-5xl lg:text-6xl leading-tight">
+                  Sacred Forms <span className="wc-accent">Cast for Eternity</span>
                 </h1>
-                <p
-                  className="text-lg leading-relaxed"
-                  style={{ color: "var(--stone-gray)" }}
-                >
-                  Handcrafted Buddhist statues, thangkas, and spiritual
-                  artifacts. Each piece carries the essence of ancient wisdom
-                  and modern artistry.
+                <p className="text-base sm:text-lg leading-relaxed max-w-xl">
+                  Buddhist statues and ornaments in silver, gold finishes, copper and bronze — handcrafted by artisans in Patan, with silver
+                  priced on the day's rate.
                 </p>
               </div>
 
-              {/* Live Price Cards with Metallic Shine */}
-              <div className="space-y-3">
-                {/* Silver Price */}
-                {silverPrice && (
-                  <div
-                    className="p-3 rounded-lg shadow-sm text-sm transition-transform duration-300 hover:scale-105 relative overflow-hidden"
-                    style={{
-                      background: `
-          linear-gradient(135deg, #f9f9f9 0%, #e6e6e6 50%, #fdfdfd 100%)
-        `,
-                      border: "1px solid #c5c5c5",
-                    }}
-                  >
-                    {/* Subtle shine overlay */}
-                    <div
-                      className="absolute top-0 right-0 w-16 h-16 rounded-bl-full"
-                      style={{
-                        background:
-                          "linear-gradient(135deg, rgba(255,255,255,0.6), rgba(255,255,255,0))",
-                      }}
-                    />
-                    <div className="flex items-center space-x-2 mb-1 relative z-10">
-                      <TrendingUp size={18} style={{ color: "#7a7a7a" }} />
-                      <span
-                        className="font-semibold"
-                        style={{ color: "#5e5e5e" }}
-                      >
-                        Live Silver Price
-                      </span>
-                    </div>
-                    <div
-                      className="text-xl font-bold relative z-10"
-                      style={{ color: "#444" }}
-                    >
-                      Rs. {silverPrice.pricePerTola?.toLocaleString()} per tola
-                    </div>
-                    <div
-                      className="text-lg font-bold"
-                      style={{
-                        color: silverPrice.dailyChange
-                          ?.toString()
-                          .startsWith("+")
-                          ? "#228B22" // green for positive
-                          : silverPrice.dailyChange?.toString().startsWith("-")
-                          ? "#D1000A" // red for negative
-                          : "#6B6666", // grey for neutral or 0
-                      }}
-                    >
-                      {silverPrice.dailyChange?.toString().startsWith("+") ||
-                      silverPrice.dailyChange?.toString().startsWith("-")
-                        ? silverPrice.dailyChange?.toLocaleString()
-                        : `~${silverPrice.dailyChange?.toLocaleString()}`}
-                    </div>
+              {(silverPrice || goldPrice) && (
+                <div className="grid sm:grid-cols-2 gap-3 max-w-xl">
+                  {silverPrice && <LivePriceCard label="Live silver price" price={silverPrice} />}
+                  {goldPrice && <LivePriceCard label="Live gold price" price={goldPrice} />}
+                </div>
+              )}
 
-                    <p
-                      className="text-xs relative z-10"
-                      style={{ color: "#666" }}
-                    >
-                      Updated:{" "}
-                      {new Date(silverPrice.lastScrapedAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                )}
-
-                {/* Gold Price */}
-                {goldPrice && (
-                  <div
-                    className="p-3 rounded-lg shadow-sm text-sm transition-transform duration-300 hover:scale-105 relative overflow-hidden"
-                    style={{
-                      background: `
-          linear-gradient(135deg, #fff9e6 0%, #ffe680 50%, #fff7cc 100%)
-        `,
-                      border: "1px solid var(--golden)",
-                    }}
-                  >
-                    <div
-                      className="absolute top-0 right-0 w-16 h-16 rounded-bl-full"
-                      style={{
-                        background:
-                          "linear-gradient(135deg, rgba(255,255,255,0.6), rgba(255,255,255,0))",
-                      }}
-                    />
-                    <div className="flex items-center space-x-2 mb-1 relative z-10">
-                      <TrendingUp
-                        size={18}
-                        style={{ color: "var(--deep-golden)" }}
-                      />
-                      <span
-                        className="font-semibold"
-                        style={{ color: "var(--deep-golden)" }}
-                      >
-                        Live Gold Price
-                      </span>
-                    </div>
-                    <div
-                      className="text-xl font-bold relative z-10"
-                      style={{ color: "#5c4a00" }}
-                    >
-                      Rs. {goldPrice.pricePerTola?.toLocaleString()} per tola
-                    </div>
-                    <div
-                      className="text-lg font-bold"
-                      style={{
-                        color: goldPrice.dailyChange?.toString().startsWith("+")
-                          ? "#228B22" // green for positive
-                          : goldPrice.dailyChange?.toString().startsWith("-")
-                          ? "#D1000A" // red for negative
-                          : "#6B6666", // grey for neutral or 0
-                      }}
-                    >
-                      {goldPrice.dailyChange?.toString().startsWith("+") ||
-                      goldPrice.dailyChange?.toString().startsWith("-")
-                        ? goldPrice.dailyChange?.toLocaleString()
-                        : `~${goldPrice.dailyChange?.toLocaleString()}`}
-                    </div>
-                    <p
-                      className="text-xs relative z-10"
-                      style={{ color: "var(--stone-gray)" }}
-                    >
-                      Updated:{" "}
-                      {new Date(goldPrice.lastScrapedAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Link to="/products" className="btn btn-primary">
-                  <Sparkles size={20} className="mr-2" />
-                  Explore Collection
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Link to="/products" className="wc-btn wc-btn-primary">
+                  Explore the collection <ArrowRight size={16} />
                 </Link>
-                <Link to="/about" className="btn btn-secondary">
-                  Our Story
+                <Link to="/about" className="wc-btn wc-btn-ghost">
+                  Our story
                 </Link>
               </div>
             </div>
 
-            <div className="relative">
-              <div className="grid grid-cols-2 gap-4">
+            {/* Photo collage */}
+            <div className="hidden sm:block">
+              <div className="grid grid-cols-2 gap-4 max-w-lg lg:ml-auto">
                 <div className="space-y-4">
-                  <div className="card h-52 overflow-hidden">
-                    <img
-                      src="https://i.ebayimg.com/images/g/wmwAAOSwXBNkWEUW/s-l1200.jpg"
-                      alt="Buddha Statue"
-                      className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-                    />
+                  <div className="wc-photo h-56">
+                    <img src="/images/guru.jpg" alt="Gold finished statue of Guru Rinpoche" />
                   </div>
-                  <div className="card h-48 overflow-hidden">
-                    <img
-                      src="https://i.ebayimg.com/images/g/uJ4AAOSwDlhm0x0P/s-l400.jpg"
-                      alt="Crown Buddha"
-                      className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-                    />
+                  <div className="wc-photo h-44">
+                    <img src="/images/bajra.jpg" alt="Hand-finished deity statue" />
                   </div>
                 </div>
-                <div className="mt-8">
-                  <div className="card h-74 overflow-hidden">
-                    <img
-                      src="https://i.ebayimg.com/images/g/K2IAAOSwYXJj6Z3o/s-l1200.jpg"
-                      alt="Golden Buddha"
-                      className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-                    />
+                <div className="mt-10">
+                  <div className="wc-photo h-[26rem]">
+                    <img src="/images/Buddha1.jpg" alt="Seated Buddha statue" />
                   </div>
                 </div>
               </div>
@@ -335,242 +134,136 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Categories Section */}
-      <section className="py-16 px-6">
+      {/* Categories */}
+      <section className="px-4 sm:px-6 py-16 lg:py-20" style={{ backgroundColor: "var(--wc-cream)" }}>
         <div className="container mx-auto">
-          <div className="text-center mb-12">
-            <h2
-              className="text-4xl font-display font-bold mb-4"
-              style={{ color: "var(--dark-gray)" }}
-            >
-              Shop by Category
+          <div className="mb-10">
+            <span className="wc-eyebrow">The collection</span>
+            <h2 className="text-3xl sm:text-4xl mt-2">
+              Shop by <span className="wc-accent">Category</span>
             </h2>
-            <p className="text-lg" style={{ color: "var(--stone-gray)" }}>
+            <p className="mt-2" style={{ color: "var(--wc-ink-muted)" }}>
               Discover our carefully curated collections
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {categories.map((category) => (
-              <Link
-                key={category._id}
-                to={`/products?categoryName=${encodeURIComponent(
-                  category.name
-                )}`}
-                className="card group cursor-pointer"
-              >
-                <div className="card-body text-center">
-                  <div
-                    className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: "var(--cream)" }}
-                  >
-                    <span className="text-3xl">
-                      {(category.name || "").includes("Gold")
-                        ? "🏆"
-                        : (category.name || "").includes("Silver")
-                        ? "🥈"
-                        : (category.name || "").includes("Bronze")
-                        ? "🥉"
-                        : "🎨"}
-                    </span>
-                  </div>
-                  <h3
-                    className="text-xl font-display font-semibold mb-2"
-                    style={{ color: "var(--dark-gray)" }}
-                  >
-                    {category.name}
-                  </h3>
-                  <p className="mb-4" style={{ color: "var(--stone-gray)" }}>
-                    {category.description}
-                  </p>
-                  {category.productCount !== undefined && (
-                    <div
-                      className="flex items-center justify-center space-x-2 text-sm"
-                      style={{ color: "var(--saffron)" }}
-                    >
-                      <Package size={16} />
-                      <span>{category.productCount} products</span>
+          {categories.length > 0 ? (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {categories.map((category) => {
+                const Icon = MATERIAL_ICONS[category.materialType] || Package;
+                return (
+                  <Link key={category._id} to={`/products?category=${category._id}`} className="wc-category-card group">
+                    {category.imageUrl ? (
+                      <div className="h-48 overflow-hidden" style={{ backgroundColor: "var(--wc-charcoal)" }}>
+                        <img
+                          src={imageUrl(category.imageUrl)}
+                          alt={category.name}
+                          onError={(e) => (e.currentTarget.style.display = "none")}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                      </div>
+                    ) : (
+                      <div className="wc-category-band" aria-hidden="true">
+                        <Icon size={44} strokeWidth={1.5} />
+                      </div>
+                    )}
+                    <div className="p-6">
+                      <h3 className="text-2xl mb-2">{category.name}</h3>
+                      {category.description && (
+                        <p className="text-sm mb-4" style={{ color: "var(--wc-ink-muted)" }}>
+                          {category.description}
+                        </p>
+                      )}
+                      <div className="flex items-center justify-between">
+                        {category.productCount !== undefined && (
+                          <span className="wc-count">
+                            {category.productCount} {category.productCount === 1 ? "piece" : "pieces"}
+                          </span>
+                        )}
+                        <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" style={{ color: "var(--wc-maroon)" }} />
+                      </div>
                     </div>
-                  )}
-                </div>
-              </Link>
-            ))}
-          </div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            !loading && <p style={{ color: "var(--wc-ink-muted)" }}>Categories will appear here soon.</p>
+          )}
         </div>
       </section>
 
-      {/* Featured Products */}
-      <section
-        className="py-16 px-6"
-        style={{ backgroundColor: "var(--cream)" }}
-      >
+      {/* Featured products */}
+      <section className="px-4 sm:px-6 py-16 lg:py-20" style={{ backgroundColor: "var(--wc-cream-light)" }}>
         <div className="container mx-auto">
-          <div className="flex items-center justify-between mb-12">
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
             <div>
-              <h2
-                className="text-4xl font-display font-bold mb-2"
-                style={{ color: "var(--dark-gray)" }}
-              >
-                Featured Products
+              <span className="wc-eyebrow">Featured</span>
+              <h2 className="text-3xl sm:text-4xl mt-2">
+                Handpicked <span className="wc-accent">Treasures</span>
               </h2>
-              <p style={{ color: "var(--stone-gray)" }}>
-                Handpicked treasures from our collection
+              <p className="mt-2" style={{ color: "var(--wc-ink-muted)" }}>
+                Statues and ornaments from our workshop
               </p>
             </div>
-            <Link to="/products" className="btn btn-secondary">
-              View All <ArrowRight size={16} className="ml-2" />
+            <Link to="/products" className="wc-btn wc-btn-outline self-start sm:self-auto">
+              View all <ArrowRight size={14} />
             </Link>
           </div>
 
-          {featuredProducts.length > 0 ? (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {featuredProducts.slice(0, 8).map((product) => (
-                <div key={product._id} className="card group">
-                  <div className="relative overflow-hidden">
-                    <img
-                      src={
-                        (Array.isArray(product.imageUrl) ? product.imageUrl[0] : product.imageUrl) ||
-                        "https://via.placeholder.com/300x300?text=Product"
-                      }
-                      alt={product.title}
-                      className="w-full h-64 object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 flex items-center justify-center opacity-0 group-hover:opacity-100">
-                      <div className="flex space-x-2">
-                        <Link
-                          to={`/product/${product._id}`}
-                          className="btn btn-primary btn-sm"
-                        >
-                          <Eye size={16} />
-                        </Link>
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            addToCart(product);
-                          }}
-                          className="btn btn-golden btn-sm"
-                        >
-                          <ShoppingCart size={16} />
-                        </button>
-                      </div>
-                    </div>
-                    {product.category?.name?.includes("Silver") && (
-                      <div
-                        className="absolute top-2 right-2 px-2 py-1 rounded text-xs font-semibold text-white"
-                        style={{ backgroundColor: "var(--saffron)" }}
-                      >
-                        Live Price
-                      </div>
-                    )}
-                  </div>
-                  <div className="card-body">
-                    <h3
-                      className="font-semibold mb-1 truncate"
-                      style={{ color: "var(--dark-gray)" }}
-                    >
-                      {product.title}
-                    </h3>
-                    <p
-                      className="text-sm mb-2"
-                      style={{ color: "var(--stone-gray)" }}
-                    >
-                      {product.category?.name}
-                    </p>
-                    <div className="flex items-center justify-between">
-                      <span
-                        className="text-lg font-bold"
-                        style={{ color: "var(--saffron)" }}
-                      >
-                        {calculatePrice(product)}
-                      </span>
-                      <div className="flex items-center space-x-1">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            size={14}
-                            className="text-yellow-400 fill-current"
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+          {loading ? (
+            <div className="py-12 text-center">
+              <div className="spinner mb-4"></div>
+              <p style={{ color: "var(--wc-ink-muted)" }}>Loading Buddhist treasures...</p>
+            </div>
+          ) : featuredProducts.length > 0 ? (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {featuredProducts.slice(0, 8).map((product, index) => (
+                <ProductTile key={product._id} product={product} crimson={index % 4 === 0} onAddToCart={addToCart} />
               ))}
             </div>
           ) : (
             <div className="text-center py-12">
-              <p className="text-lg" style={{ color: "var(--stone-gray)" }}>
+              <p className="text-lg" style={{ color: "var(--wc-ink-muted)" }}>
                 No products available at the moment.
               </p>
-              <p
-                className="text-sm mt-2"
-                style={{ color: "var(--stone-gray)" }}
-              >
-                Please check back later or contact us for more information.
+              <p className="text-sm mt-2" style={{ color: "var(--wc-ink-muted)" }}>
+                Please check back later or <Link to="/contact" className="underline">contact us</Link>.
               </p>
             </div>
           )}
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="py-16 px-6">
+      {/* Highlights */}
+      <section className="wc-dark wc-on-dark px-4 sm:px-6 py-16 lg:py-20">
         <div className="container mx-auto">
-          <div className="grid md:grid-cols-3 gap-8 text-center">
-            <div>
-              <div
-                className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
-                style={{ backgroundColor: "var(--saffron)" }}
-              >
-                <Award size={32} className="text-white" />
+          <span className="wc-eyebrow">Why Welcome Craft</span>
+          <h2 className="text-3xl sm:text-4xl mt-2 mb-10">
+            Made with <span className="wc-accent">Devotion</span>
+          </h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            {HIGHLIGHTS.map((item, i) => (
+              <div key={item.title} className="wc-step-card">
+                <div className="wc-step-number mb-4">{String(i + 1).padStart(2, "0")}</div>
+                <h3 className="text-xl mb-2">{item.title}</h3>
+                <p className="text-sm leading-relaxed" style={{ color: "var(--wc-on-dark-muted)" }}>
+                  {item.text}
+                </p>
               </div>
-              <h3
-                className="text-2xl font-bold mb-2"
-                style={{ color: "var(--dark-gray)" }}
-              >
-                Authentic Crafts
-              </h3>
-              <p style={{ color: "var(--stone-gray)" }}>
-                Handcrafted by skilled artisans following traditional methods
-              </p>
-            </div>
-            <div>
-              <div
-                className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
-                style={{ backgroundColor: "var(--golden)" }}
-              >
-                <TrendingUp size={32} className="text-white" />
-              </div>
-              <h3
-                className="text-2xl font-bold mb-2"
-                style={{ color: "var(--dark-gray)" }}
-              >
-                Live Pricing
-              </h3>
-              <p style={{ color: "var(--stone-gray)" }}>
-                Real-time silver price updates for transparent pricing
-              </p>
-            </div>
-            <div>
-              <div
-                className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
-                style={{ backgroundColor: "var(--maroon)" }}
-              >
-                <Users size={32} className="text-white" />
-              </div>
-              <h3
-                className="text-2xl font-bold mb-2"
-                style={{ color: "var(--dark-gray)" }}
-              >
-                Trusted Service
-              </h3>
-              <p style={{ color: "var(--stone-gray)" }}>
-                Direct communication and personalized service via WhatsApp
-              </p>
-            </div>
+            ))}
           </div>
         </div>
       </section>
+
+      {toast && (
+        <div className="wc-toast" role="status">
+          {toast}{" "}
+          <Link to="/cart" className="underline font-semibold" style={{ color: "var(--wc-marigold)" }}>
+            View cart
+          </Link>
+        </div>
+      )}
     </div>
   );
 };
