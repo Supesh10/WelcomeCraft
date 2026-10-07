@@ -214,7 +214,7 @@ exports.getAllProducts = async (req, res) => {
     }
 
     if (category) {
-      filter.category = category;
+      filter['category.categoryId'] = category;
     }
 
     if (categoryName) {
@@ -304,7 +304,9 @@ exports.getAllProducts = async (req, res) => {
     });
   } catch (error) {
     console.error("Get products error:", error);
-    res.status(500).json({ message: "Error fetching products", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Error fetching products", error: error.message });
   }
 };
 
@@ -372,8 +374,8 @@ exports.updateProduct = async (req, res) => {
 // Delete a product
 exports.deleteProduct = async (req, res) => {
   try {
-    const product = await Product.findByIdAndDelete(req.params.productId);
-
+    const { productId } = req.params;
+    const product = await Product.findByIdAndDelete(productId);
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }

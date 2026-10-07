@@ -7,6 +7,7 @@ const multer = require("multer");
 const UPLOAD_DIR = path.join(__dirname, "..", "..", "uploads");
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
+// Storage configuration
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   // Random suffix so several images uploaded in the same millisecond

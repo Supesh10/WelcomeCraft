@@ -85,6 +85,7 @@ class ApiService {
   }
 
   static async getProductById(productId) {
+      console.log(productId);
     return this.makeRequest(`/products/${productId}`);
   }
 

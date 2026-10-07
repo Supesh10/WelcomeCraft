@@ -5,22 +5,14 @@ const {
   getProductSchemaSpec,
 } = require("../Config/productTypes");
 
-// Counter schema for category IDs
-const counterSchema = new mongoose.Schema({
-  _id: { type: String, required: true },
-  sequence_value: { type: Number, default: 99 } // start from 100
-});
-
-const Counter = mongoose.model("Counter", counterSchema);
-
 const categorySchema = new mongoose.Schema(
   {
-    categoryId: {
-      type: Number,
-      unique: true,
+
+    name: {
+      type: String,
       required: true,
+      unique: true,
     },
-    name: { type: String, required: true, unique: true },
     description: String,
     imageUrl: String,
 

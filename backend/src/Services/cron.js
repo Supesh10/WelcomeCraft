@@ -5,7 +5,7 @@ const { getRates } = require("./currencyService");
 
 
 
-cron.schedule("*/15 5-13 * * *", async () => {
+cron.schedule("*/30 6-14 * * *", async () => {
   console.log("🕐 Running scheduled price updates...");
   try {
     const silverResult = await updateSilver();

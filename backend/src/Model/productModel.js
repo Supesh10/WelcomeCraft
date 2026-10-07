@@ -28,9 +28,16 @@ const productSchema = new mongoose.Schema(
     images: [{ type: String, required: true }],
 
     category: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
-      required: true,
+      categoryId: { type: String, required: true },
+      name: { type: String, required: true },
+      description: { type: String },
+      imageUrl: [{ type: String }],
+      type: {
+        type: String,
+        required: true,
+        enum: ["silver", "customSilver", "gold", "other"],
+        default: "other",
+      },
     },
 
     dimensions: dimensionsSchema,

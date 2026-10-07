@@ -5,7 +5,7 @@ const Category = require('./src/Model/categoryModel');
 // Connect to database
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.DB_URI, {
+    await mongoose.connect(process.env.mongo_uri, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
