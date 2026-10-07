@@ -8,6 +8,7 @@ const {
   isCustomSilver,
 } = require("../Services/pricingService");
 const { generateCustomerOrderUrl } = require("../Services/messagingService");
+const { emailEnabled, sendOrderEmails } = require("../Services/emailService");
 
 // Re-price every item at today's silver rate and drop items whose product
 // was deleted or hidden. Returns what changed so the page can tell the customer.
@@ -492,6 +493,9 @@ generateCheckoutUrl = async (req, res) => {
       orderIds: orders.map((o) => o._id),
     };
 
+    // Products as ordered, for the emails (the cart is emptied below)
+    const orderedProducts = cart.items.map((item) => item.product);
+
     // Orders are saved; empty the cart but keep the customer details for next time
     cart.items = [];
     cart.orderNotes = undefined;
@@ -503,7 +507,13 @@ generateCheckoutUrl = async (req, res) => {
       whatsappUrl,
       orderSummary,
       removedItems,
+      // Lets the confirmation page mention the email copy
+      customerEmailRequested: Boolean(cart.customerEmail) && emailEnabled(),
     });
+
+    // Email the shop and the customer after responding, so mail problems
+    // never hold up or fail the order. Errors are logged, not thrown.
+    sendOrderEmails(orders, { products: orderedProducts });
   } catch (error) {
     console.error("Checkout error:", error);
     res

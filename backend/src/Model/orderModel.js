@@ -38,6 +38,13 @@ const orderSchema = new mongoose.Schema({
   customization: { type: String }, // Free-text notes
   customSpecification: customSpecificationSchema, // For custom silver products
 
+  // Whether the order emails went out: "sent", "skipped: ..." or "failed: ..."
+  emailStatus: {
+    admin: String,
+    customer: String,
+    at: Date
+  },
+
   // Order status: 'pending', 'contacted', 'confirmed', 'completed', 'cancelled'
   status: { 
     type: String, 

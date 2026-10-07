@@ -85,6 +85,8 @@ export default function OrderForm() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState("")
   const [submitError, setSubmitError] = useState("")
+  // New orders only: email the customer that their order was placed
+  const [notifyCustomer, setNotifyCustomer] = useState(false)
   const [saving, setSaving] = useState(false)
   const [designChoice, setDesignChoice] = useState("")
 
@@ -225,7 +227,11 @@ export default function OrderForm() {
           totalPrice: values.totalPrice === str(order.totalPrice) ? undefined : values.totalPrice,
         })
       } else {
-        const { order: created } = await ApiService.createOrder({ ...body, productId: values.productId })
+        const { order: created } = await ApiService.createOrder({
+          ...body,
+          productId: values.productId,
+          notifyCustomer: notifyCustomer && Boolean(body.customerEmail),
+        })
         // New orders always start as pending; apply the chosen status/price after
         const extra = {}
         if (values.status !== "pending") extra.status = values.status
@@ -393,6 +399,23 @@ export default function OrderForm() {
             <Field label="Email (optional)" error={errors.customerEmail}>
               <Input type="email" value={values.customerEmail} onChange={set("customerEmail")} />
             </Field>
+            {!isEdit && (
+              <label className="flex items-start gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={notifyCustomer}
+                  disabled={!values.customerEmail.trim()}
+                  onChange={(e) => setNotifyCustomer(e.target.checked)}
+                />
+                <span>
+                  Email the customer that their order has been placed
+                  <span className="block text-xs text-gray-500">
+                    {values.customerEmail.trim() ? "Uses the shop's order email settings." : "Add an email address to use this."}
+                  </span>
+                </span>
+              </label>
+            )}
             <Field label="Address (optional)">
               <Textarea rows={2} className="resize-none" value={values.customerAddress} onChange={set("customerAddress")} />
             </Field>

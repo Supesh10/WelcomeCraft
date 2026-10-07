@@ -26,7 +26,7 @@ import "../styles/cart.css";
 
 const EMPTY_INFO = { name: "", phone: "", email: "", address: "", orderNotes: "" };
 
-function Field({ id, label, optional, error, icon: Icon, children }) {
+function Field({ id, label, optional, error, hint, icon: Icon, children }) {
   return (
     <div>
       <label htmlFor={id} className="wc-field-label">
@@ -36,6 +36,11 @@ function Field({ id, label, optional, error, icon: Icon, children }) {
         {children}
         {Icon && <Icon size={16} className="wc-field-icon" aria-hidden="true" />}
       </div>
+      {hint && !error && (
+        <p id={`${id}-hint`} className="text-xs mt-1" style={{ color: "var(--wc-ink-muted)" }}>
+          {hint}
+        </p>
+      )}
       {error && (
         <p id={`${id}-error`} className="wc-field-error">
           {error}
@@ -154,6 +159,12 @@ const CheckoutPage = () => {
             <p className="mb-5" style={{ color: "var(--wc-ink-muted)" }}>
               We'll contact you on <strong style={{ color: "var(--wc-ink)" }}>{placedOrder.orderSummary?.customerPhone}</strong> to confirm
               availability, the final price and delivery.
+              {placedOrder.customerEmailRequested && customerInfo.email.trim() && (
+                <>
+                  {" "}
+                  A copy of your order is on its way to <strong style={{ color: "var(--wc-ink)" }}>{customerInfo.email.trim()}</strong>.
+                </>
+              )}
             </p>
             {refs.length > 0 && (
               <p className="mb-6 text-sm" style={{ color: "var(--wc-ink-muted)" }}>
@@ -279,7 +290,14 @@ const CheckoutPage = () => {
                 </Field>
               </div>
 
-              <Field id="checkout-email" label="Email" optional error={validationErrors.email} icon={Mail}>
+              <Field
+                id="checkout-email"
+                label="Email"
+                optional
+                error={validationErrors.email}
+                hint="For a copy of your order and updates about it."
+                icon={Mail}
+              >
                 <input
                   id="checkout-email"
                   type="email"
@@ -287,7 +305,7 @@ const CheckoutPage = () => {
                   value={customerInfo.email}
                   onChange={handleInputChange("email")}
                   aria-invalid={!!validationErrors.email}
-                  aria-describedby={describedBy("email")}
+                  aria-describedby={describedBy("email") || "checkout-email-hint"}
                   className={inputClass("email", "pl-10")}
                   placeholder="you@example.com"
                 />

@@ -53,7 +53,11 @@ app.get("/", (req, res) => {
 
 const port = process.env.PORT || process.env.port || 8081;
 
-const server = app.listen(port, console.log(`Server started on port ${port}`));
+const server = app.listen(port, () => {
+  console.log(`Server started on port ${port}`);
+  // Log whether order emails are set up correctly
+  require("./src/Services/emailService").verifyEmailSetup();
+});
 
 server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {

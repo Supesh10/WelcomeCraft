@@ -1,7 +1,22 @@
 const Order = require("../Model/orderModel");
 const Product = require("../Model/productModel");
 const { calculatePrice, validateCustomSpecification } = require("../Services/pricingService");
+const jwt = require("jsonwebtoken");
 const { sendWhatsAppOrderNotification } = require("../Services/messagingService");
+const { sendOrderEmails } = require("../Services/emailService");
+
+// True when the request carries a valid admin token (orders entered from the
+// admin panel), so the shop isn't emailed about its own orders
+const isAdminRequest = (req) => {
+  const token = (req.header("Authorization") || "").replace("Bearer ", "");
+  if (!token) return false;
+  try {
+    jwt.verify(token, process.env.JWT_SECRET);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 // Create Order
 exports.createOrder = async (req, res) => {
@@ -69,6 +84,14 @@ exports.createOrder = async (req, res) => {
       order: populatedOrder,
       whatsappNotification
     });
+
+    // Orders from the shop email the shop and the customer. Orders entered by
+    // an admin only email the customer, and only when notifyCustomer is set.
+    const byAdmin = isAdminRequest(req);
+    if (!byAdmin || String(req.body.notifyCustomer) === "true") {
+      populatedOrder.product = product; // with its category, for the email
+      sendOrderEmails([populatedOrder], { notifyAdmin: !byAdmin });
+    }
   } catch (error) {
     console.error("Order creation error:", error);
     res.status(500).json({ message: "Error creating order", error: error.message });

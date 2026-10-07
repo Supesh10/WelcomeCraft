@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { Pencil, Plus, Trash2 } from "lucide-react"
+import { MailWarning, Pencil, Plus, Trash2 } from "lucide-react"
 import { Button } from "../ui/button"
 import { Input } from "../ui/input"
 import ApiService from "../../services/apiService"
@@ -28,6 +28,23 @@ const HEAD = [
   { label: "Status" },
   { label: "Actions", className: "text-right" },
 ]
+
+// "Email failed" note when an order email didn't go out (details on hover)
+function EmailProblem({ status }) {
+  if (!status) return null
+  const failed = [
+    status.admin?.startsWith("failed") && `Shop email ${status.admin}`,
+    status.customer?.startsWith("failed") && `Customer email ${status.customer}`,
+  ].filter(Boolean)
+  if (!failed.length) return null
+  return (
+    <div className="mt-1 inline-flex items-center gap-1 text-xs text-amber-700" title={failed.join("\n")}>
+      <MailWarning className="h-3.5 w-3.5" aria-hidden="true" />
+      Email failed
+      <span className="sr-only">: {failed.join(". ")}</span>
+    </div>
+  )
+}
 
 const STATUS_STYLES = Object.fromEntries(ORDER_STATUSES.map((s) => [s.value, s.className]))
 
@@ -147,6 +164,7 @@ export default function OrdersList() {
               <td className="px-4 py-3">
                 <div className="font-medium text-gray-900">{o.customerName}</div>
                 <div className="text-xs text-gray-500">{o.customerPhone}</div>
+                <EmailProblem status={o.emailStatus} />
               </td>
               <td className="px-4 py-3">
                 <div className="text-gray-900">{o.product?.title || <span className="text-red-600">Product deleted</span>}</div>
